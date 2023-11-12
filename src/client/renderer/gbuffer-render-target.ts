@@ -1,0 +1,289 @@
+import { RenderPass } from './render-utility';
+import {
+  ALPHA_RGBA,
+  ALPHA_TRANSFORM,
+  CopyTransformMaterial,
+  DEFAULT_UV_TRANSFORM,
+} from './shader-utility';
+import type { RenderCacheManager } from './render-cache';
+import { ObjectRenderCache } from './render-cache';
+import { GBufferNormalDepthMaterial } from './materials/normal-depth-material';
+import type {
+  Camera,
+  MagnificationTextureFilter,
+  Mesh,
+  Object3D,
+  Scene,
+  ShaderMaterial,
+  Texture,
+  TextureFilter,
+  WebGLRenderer,
+} from 'three';
+import {
+  DepthStencilFormat,
+  DepthTexture,
+  FloatType,
+  Material,
+  MeshPhysicalMaterial,
+  NearestFilter,
+  NoBlending,
+  UnsignedInt248Type,
+  WebGLRenderTarget,
+} from 'three';
+
+export interface GBufferTextures {
+  get isFloatGBufferWithRgbNormalAlphaDepth(): boolean;
+  get gBufferTexture(): Texture;
+  get depthBufferTexture(): Texture;
+  get textureWithDepthValue(): Texture;
+}
+
+export interface GBufferParameters {
+  [key: string]: any;
+  depthNormalScale: number;
+}
+
+export class GBufferRenderTargets implements GBufferTextures {
+  public parameters: GBufferParameters;
+  public readonly floatRgbNormalAlphaDepth: boolean = false;
+  public readonly linearDepth: boolean = false;
+  public copyToSeparateDepthBuffer: boolean = false;
+  private _renderCacheManager?: RenderCacheManager;
+  private _gBufferMaterialCache?: GBufferMaterialCache;
+  private _targetMinificationTextureFilter: TextureFilter;
+  private _targetMagnificationTextureFilter: MagnificationTextureFilter;
+  private _width: number;
+  private _height: number;
+  private _samples: number;
+  private _gBufferRenderMaterial?: GBufferNormalDepthMaterial;
+  private _depthNormalRenderTarget?: WebGLRenderTarget;
+  private _separateDeptRenderTarget?: WebGLRenderTarget;
+  private _renderPass: RenderPass;
+  private _copyMaterial?: CopyTransformMaterial;
+  private _shared: boolean;
+  public needsUpdate: boolean = true;
+
+  public set groundDepthWrite(value: boolean) {
+    if (this._gBufferMaterialCache) {
+      this._gBufferMaterialCache.groundDepthWrite = value;
+    }
+  }
+
+  public get isFloatGBufferWithRgbNormalAlphaDepth(): boolean {
+    return this.floatRgbNormalAlphaDepth;
+  }
+  public get gBufferTexture(): Texture {
+    return this.depthNormalRenderTarget.texture;
+  }
+  public get depthBufferTexture(): Texture {
+    return this.copyToSeparateDepthBuffer && this.floatRgbNormalAlphaDepth
+      ? this.separateDeptRenderTarget.texture
+      : this.depthNormalRenderTarget.depthTexture;
+  }
+
+  public get textureWithDepthValue(): Texture {
+    return this.floatRgbNormalAlphaDepth
+      ? this.depthNormalRenderTarget.texture
+      : this.depthNormalRenderTarget.depthTexture;
+  }
+
+  public updateGBufferRenderMaterial(camera: Camera): Material {
+    this._gBufferRenderMaterial =
+      this._gBufferRenderMaterial ??
+      new GBufferNormalDepthMaterial({
+        blending: NoBlending,
+        floatRgbNormalAlphaDepth: this.floatRgbNormalAlphaDepth,
+        linearDepth: this.linearDepth,
+      });
+    this._gBufferRenderMaterial.updateCameraDependentUniforms(camera);
+    return this._gBufferRenderMaterial;
+  }
+
+  public get depthNormalRenderTarget(): WebGLRenderTarget {
+    if (!this._depthNormalRenderTarget) {
+      if (this.floatRgbNormalAlphaDepth) {
+        this._depthNormalRenderTarget = new WebGLRenderTarget(
+          this._width * this.parameters.depthNormalScale,
+          this._height * this.parameters.depthNormalScale,
+          {
+            minFilter: this._targetMinificationTextureFilter,
+            magFilter: this._targetMagnificationTextureFilter,
+            type: FloatType,
+            samples: this._samples,
+          },
+        );
+      } else {
+        const depthTexture = new DepthTexture(
+          this._width * this.parameters.depthNormalScale,
+          this._height * this.parameters.depthNormalScale,
+        );
+        depthTexture.format = DepthStencilFormat;
+        depthTexture.type = UnsignedInt248Type;
+        this._depthNormalRenderTarget = new WebGLRenderTarget(
+          this._width * this.parameters.depthNormalScale,
+          this._height * this.parameters.depthNormalScale,
+          {
+            minFilter: this._targetMinificationTextureFilter,
+            magFilter: this._targetMagnificationTextureFilter,
+            depthTexture,
+          },
+        );
+      }
+    }
+    return this._depthNormalRenderTarget;
+  }
+
+  public get separateDeptRenderTarget(): WebGLRenderTarget {
+    if (!this._separateDeptRenderTarget) {
+      this._separateDeptRenderTarget = new WebGLRenderTarget(
+        this._width * this.parameters.depthNormalScale,
+        this._height * this.parameters.depthNormalScale,
+        {
+          minFilter: this._targetMinificationTextureFilter,
+          magFilter: this._targetMagnificationTextureFilter,
+          //format: RedFormat,
+          type: FloatType,
+          samples: 0,
+        },
+      );
+    }
+    return this._separateDeptRenderTarget;
+  }
+
+  constructor(renderCacheManager?: RenderCacheManager, parameters?: any) {
+    this.floatRgbNormalAlphaDepth = parameters?.capabilities?.isWebGL2 ?? false;
+    this._renderCacheManager = renderCacheManager;
+    if (this._renderCacheManager) {
+      this._gBufferMaterialCache = new GBufferMaterialCache();
+      this._renderCacheManager.registerCache(this, this._gBufferMaterialCache);
+    }
+    this.parameters = {
+      depthNormalScale: parameters?.depthNormalScale ?? 1,
+    };
+    this._targetMinificationTextureFilter =
+      parameters?.textureMinificationFilter ?? NearestFilter;
+    this._targetMagnificationTextureFilter =
+      parameters?.textureMagnificationFilter ?? NearestFilter;
+    this._width = parameters?.width ?? 1024;
+    this._height = parameters?.height ?? 1024;
+    this._samples = parameters?.samples ?? 0;
+    this._shared = parameters?.shared ?? false;
+    this._renderPass = parameters?.renderPass ?? new RenderPass();
+  }
+
+  public dispose() {
+    this._gBufferRenderMaterial?.dispose();
+    this._depthNormalRenderTarget?.dispose();
+  }
+
+  public setSize(width: number, height: number) {
+    this._width = width;
+    this._height = height;
+    this._depthNormalRenderTarget?.setSize(
+      this._width * this.parameters.depthNormalScale,
+      this._height * this.parameters.depthNormalScale,
+    );
+  }
+
+  public render(renderer: WebGLRenderer, scene: Scene, camera: Camera): void {
+    if (this._shared && !this.needsUpdate) {
+      return;
+    }
+    this.needsUpdate = false;
+    if (this._renderCacheManager) {
+      this._renderCacheManager.render(this, scene, () => {
+        this._renderGBuffer(renderer, scene, camera);
+      });
+    } else {
+      this._renderGBuffer(renderer, scene, camera);
+    }
+    if (this.floatRgbNormalAlphaDepth && this.copyToSeparateDepthBuffer) {
+      this._copyDepthToSeparateDepthTexture(
+        renderer,
+        this.depthNormalRenderTarget,
+      );
+    }
+  }
+
+  private _renderGBuffer(
+    renderer: WebGLRenderer,
+    scene: Scene,
+    camera: Camera,
+  ) {
+    this._renderPass.renderWithOverrideMaterial(
+      renderer,
+      scene,
+      camera,
+      this.updateGBufferRenderMaterial(camera),
+      this.depthNormalRenderTarget,
+      0x7777ff,
+      1.0,
+    );
+  }
+
+  protected getCopyMaterial(parameters?: any): ShaderMaterial {
+    this._copyMaterial ??= new CopyTransformMaterial();
+    return this._copyMaterial.update(parameters);
+  }
+
+  private _copyDepthToSeparateDepthTexture(
+    renderer: WebGLRenderer,
+    source: WebGLRenderTarget,
+  ) {
+    this._renderPass.renderScreenSpace(
+      renderer,
+      this.getCopyMaterial({
+        texture: source.texture,
+        blending: NoBlending,
+        colorTransform: ALPHA_TRANSFORM,
+        colorBase: ALPHA_RGBA,
+        multiplyChannels: 0,
+        uvTransform: DEFAULT_UV_TRANSFORM,
+      }),
+      this.separateDeptRenderTarget,
+    );
+  }
+}
+
+export class GBufferMaterialCache extends ObjectRenderCache {
+  private _groundDepthWrite: boolean = false;
+
+  set groundDepthWrite(value: boolean) {
+    this._groundDepthWrite = value;
+  }
+
+  public constructor() {
+    super();
+  }
+
+  public dispose(): void {
+    // nothing to do
+  }
+
+  public addLineOrPoint(object3d: Object3D): void {
+    this.addToCache(object3d, { visible: false });
+  }
+
+  public addMesh(mesh: Mesh): void {
+    if (mesh.userData.isFloor) {
+      this.addToCache(mesh, { visible: this._groundDepthWrite });
+    } else if (mesh.visible) {
+      if (
+        mesh.material instanceof Material &&
+        ((mesh.material.transparent && mesh.material.opacity < 0.7) ||
+          mesh.material.alphaTest > 0)
+      ) {
+        this.addToCache(mesh, { visible: false });
+      } else if (
+        mesh.material instanceof MeshPhysicalMaterial &&
+        (mesh.material as MeshPhysicalMaterial).transmission > 0
+      ) {
+        this.addToCache(mesh, { visible: false });
+      }
+    }
+  }
+
+  public addObject(_object3d: Object3D): void {
+    // nothing to do
+  }
+}
