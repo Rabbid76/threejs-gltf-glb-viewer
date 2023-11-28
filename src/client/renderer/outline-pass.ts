@@ -28,6 +28,12 @@ import {
   WebGLRenderTarget,
 } from 'three';
 
+export interface OutlinePassParameters {
+  gBufferRenderTarget?: GBufferRenderTargets;
+  downSampleRatio?: number;
+  edgeDetectionFxaa?: boolean;
+}
+
 export class OutlinePass extends Pass {
   public static BlurDirectionX = new Vector2(1.0, 0.0);
   public static BlurDirectionY = new Vector2(0.0, 1.0);
@@ -76,10 +82,10 @@ export class OutlinePass extends Pass {
     scene: Scene,
     camera: Camera,
     selectedObjects: Object3D[],
-    parameters?: any,
+    parameters?: OutlinePassParameters
   ) {
     super();
-    this._gBufferRenderTarget = parameters?._gBufferRenderTarget;
+    this._gBufferRenderTarget = parameters?.gBufferRenderTarget;
 
     this.renderScene = scene;
     this.renderCamera = camera;
@@ -106,7 +112,7 @@ export class OutlinePass extends Pass {
 
     this.renderTargetMaskBuffer = new WebGLRenderTarget(
       this.resolution.x,
-      this.resolution.y,
+      this.resolution.y
     );
     this.renderTargetMaskBuffer.texture.name = 'OutlinePass.mask';
     this.renderTargetMaskBuffer.texture.generateMipmaps = false;
@@ -119,18 +125,18 @@ export class OutlinePass extends Pass {
     }
 
     this.prepareMaskMaterial = this._getPrepareMaskMaterial(
-      this._gBufferRenderTarget?.isFloatGBufferWithRgbNormalAlphaDepth,
+      this._gBufferRenderTarget?.isFloatGBufferWithRgbNormalAlphaDepth
     );
     this.prepareMaskMaterial.side = DoubleSide;
     this.prepareMaskMaterial.fragmentShader = replaceDepthToViewZ(
       this.prepareMaskMaterial.fragmentShader,
-      this.renderCamera,
+      this.renderCamera
     );
 
     if (!this._gBufferRenderTarget) {
       this.renderTargetDepthBuffer = new WebGLRenderTarget(
         this.resolution.x,
-        this.resolution.y,
+        this.resolution.y
       );
       this.renderTargetDepthBuffer.texture.name = 'OutlinePass.depth';
       this.renderTargetDepthBuffer.texture.generateMipmaps = false;
@@ -142,11 +148,11 @@ export class OutlinePass extends Pass {
         this.renderTargetMaskBuffer.texture;
       this.fxaaRenderMaterial.uniforms.resolution.value.set(
         1 / this.resolution.x,
-        1 / this.resolution.y,
+        1 / this.resolution.y
       );
       this.renderTargetFxaaBuffer = new WebGLRenderTarget(
         this.resolution.x,
-        this.resolution.y,
+        this.resolution.y
       );
       this.renderTargetFxaaBuffer.texture.name = 'OutlinePass.fxaa';
       this.renderTargetFxaaBuffer.texture.generateMipmaps = false;
@@ -162,7 +168,7 @@ export class OutlinePass extends Pass {
     this.renderTargetBlurBuffer1.texture.generateMipmaps = false;
     this.renderTargetBlurBuffer2 = new WebGLRenderTarget(
       Math.round(resx / 2),
-      Math.round(resy / 2),
+      Math.round(resy / 2)
     );
     this.renderTargetBlurBuffer2.texture.name = 'OutlinePass.blur2';
     this.renderTargetBlurBuffer2.texture.generateMipmaps = false;
@@ -173,7 +179,7 @@ export class OutlinePass extends Pass {
     this.renderTargetEdgeBuffer1.texture.generateMipmaps = false;
     this.renderTargetEdgeBuffer2 = new WebGLRenderTarget(
       Math.round(resx / 2),
-      Math.round(resy / 2),
+      Math.round(resy / 2)
     );
     this.renderTargetEdgeBuffer2.texture.name = 'OutlinePass.edge2';
     this.renderTargetEdgeBuffer2.texture.generateMipmaps = false;
@@ -188,7 +194,7 @@ export class OutlinePass extends Pass {
     this.separableBlurMaterial2 = this._getSeperableBlurMaterial(MAX_EDGE_GLOW);
     this.separableBlurMaterial2.uniforms.texSize.value.set(
       Math.round(resx / 2),
-      Math.round(resy / 2),
+      Math.round(resy / 2)
     );
     this.separableBlurMaterial2.uniforms.kernelRadius.value = MAX_EDGE_GLOW;
 
@@ -277,7 +283,7 @@ export class OutlinePass extends Pass {
 
     this.fxaaRenderMaterial?.uniforms.resolution.value.set(
       1 / this.resolution.x,
-      1 / this.resolution.y,
+      1 / this.resolution.y
     );
     this.renderTargetFxaaBuffer?.setSize(width, height);
   }
@@ -298,7 +304,7 @@ export class OutlinePass extends Pass {
     }
 
     this.selectedObjects.forEach((selectedObject) =>
-      selectedObject.traverse(gatherSelectedMeshesCallBack),
+      selectedObject.traverse(gatherSelectedMeshesCallBack)
     );
   }
 
@@ -314,7 +320,7 @@ export class OutlinePass extends Pass {
     }
 
     this.selectedObjects.forEach((selectedObject) =>
-      selectedObject.traverse(gatherSelectedMeshesCallBack),
+      selectedObject.traverse(gatherSelectedMeshesCallBack)
     );
 
     function VisibilityChangeCallBack(object: Object3D) {
@@ -323,7 +329,7 @@ export class OutlinePass extends Pass {
         // only meshes and sprites are supported by OutlinePass
 
         let bFound = selectedMeshes.some(
-          (selectedMesh) => selectedMesh.id === object.id,
+          (selectedMesh) => selectedMesh.id === object.id
         );
         if (bFound === false) {
           const visibility = object.visible;
@@ -353,23 +359,12 @@ export class OutlinePass extends Pass {
   }
 
   private _updateTextureMatrix() {
+    // prettier-ignore
     this.textureMatrix.set(
-      0.5,
-      0.0,
-      0.0,
-      0.5,
-      0.0,
-      0.5,
-      0.0,
-      0.5,
-      0.0,
-      0.0,
-      0.5,
-      0.5,
-      0.0,
-      0.0,
-      0.0,
-      1.0,
+      0.5, 0.0, 0.0, 0.5,
+      0.0, 0.5, 0.0, 0.5,
+      0.0, 0.0, 0.5, 0.5,
+      0.0, 0.0, 0.0, 1.0
     );
     this.textureMatrix.multiply(this.renderCamera.projectionMatrix);
     this.textureMatrix.multiply(this.renderCamera.matrixWorldInverse);
@@ -380,13 +375,13 @@ export class OutlinePass extends Pass {
     _writeBuffer: WebGLRenderTarget | null,
     readBuffer: WebGLRenderTarget | null,
     _deltaTime: number,
-    maskActive: boolean,
+    maskActive: boolean
   ) {
     if (this.selectedObjects.length > 0) {
       this._gBufferRenderTarget?.render(
         renderer,
         this.renderScene,
-        this.renderCamera,
+        this.renderCamera
       );
 
       renderer.getClearColor(this._oldClearColor);
@@ -429,7 +424,7 @@ export class OutlinePass extends Pass {
         // @ts-ignore -- wrong typing near is there
         this.renderCamera.near,
         // @ts-ignore -- wrong typing far is there
-        this.renderCamera.far,
+        this.renderCamera.far
       );
       if (this._gBufferRenderTarget) {
         this.prepareMaskMaterial.uniforms.depthTexture.value =
@@ -491,7 +486,7 @@ export class OutlinePass extends Pass {
         this.renderTargetMaskDownSampleBuffer.texture;
       this.edgeDetectionMaterial.uniforms.texSize.value.set(
         this.renderTargetMaskDownSampleBuffer.width,
-        this.renderTargetMaskDownSampleBuffer.height,
+        this.renderTargetMaskDownSampleBuffer.height
       );
       this.edgeDetectionMaterial.uniforms.visibleEdgeColor.value =
         this.tempPulseColor1;

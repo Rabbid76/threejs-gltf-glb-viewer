@@ -41,14 +41,14 @@ export class LightSourceDetectorDebug {
     this._createLightGraphInMap(
       this._lightSourceDetector.sampleUVs,
       this._lightSourceDetector.lightSamples,
-      this._lightSourceDetector.lightGraph,
+      this._lightSourceDetector.lightGraph
     );
   }
 
   private _createLightGraphInMap(
     allLightSamplesUVs: Vector2[],
     lightSamples: LightSample[],
-    lightGraph: LightGraph,
+    lightGraph: LightGraph
   ) {
     let singleLightSamples: LightSample[] = [];
     let clusterLightSamples: LightSample[] = [];
@@ -61,12 +61,12 @@ export class LightSourceDetectorDebug {
     }
     const singleLightSampleUVs = singleLightSamples.map((sample) => sample.uv);
     const clusterLightSampleUVs = clusterLightSamples.map(
-      (sample) => sample.uv,
+      (sample) => sample.uv
     );
     const discardedSamples = allLightSamplesUVs.filter(
       (uv) =>
         !singleLightSampleUVs.includes(uv) &&
-        !clusterLightSampleUVs.includes(uv),
+        !clusterLightSampleUVs.includes(uv)
     );
     this._createSamplePointsInMap(discardedSamples, 0.005, 0xff0000);
     this._createSamplePointsInMap(singleLightSampleUVs, 0.01, 0x0000ff);
@@ -74,10 +74,10 @@ export class LightSourceDetectorDebug {
     this._createClusterLinesInMap(
       this._lightSourceDetector.lightSamples,
       this._lightSourceDetector.lightGraph.edges,
-      0x000080,
+      0x000080
     );
     const lightSourceUVs = this._lightSourceDetector.lightSources.map(
-      (lightSource) => lightSource.uv,
+      (lightSource) => lightSource.uv
     );
     this._createSamplePointsInMap(lightSourceUVs, 0.015, 0xffff00);
     this._createCirclesInMap(this._lightSourceDetector.lightSources, 0x808000);
@@ -86,7 +86,7 @@ export class LightSourceDetectorDebug {
   private _createSamplePointsInMap(
     samplePoints: Vector2[],
     radius: number,
-    color: ColorRepresentation,
+    color: ColorRepresentation
   ) {
     // TODO TREE.Points https://threejs.org/docs/#api/en/objects/Points
     const samplePointGeometry = new CircleGeometry(radius, 8, 4);
@@ -94,7 +94,7 @@ export class LightSourceDetectorDebug {
     samplePoints.forEach((samplePoint: Vector2) => {
       const samplePointMesh = new Mesh(
         samplePointGeometry,
-        samplePointMaterial,
+        samplePointMaterial
       );
       samplePointMesh.position.copy(this._uvToMapPosition(samplePoint));
       samplePointMesh.name = 'samplePoint';
@@ -104,7 +104,7 @@ export class LightSourceDetectorDebug {
 
   private _createCirclesInMap(
     lightSources: LightSource[],
-    color: ColorRepresentation,
+    color: ColorRepresentation
   ) {
     const samplePointMaterial = new MeshBasicMaterial({
       color,
@@ -115,7 +115,7 @@ export class LightSourceDetectorDebug {
       const samplePointGeometry = new CircleGeometry(lightSource.size, 8, 4);
       const samplePointMesh = new Mesh(
         samplePointGeometry,
-        samplePointMaterial,
+        samplePointMaterial
       );
       samplePointMesh.position.copy(this._uvToMapPosition(lightSource.uv));
       samplePointMesh.name = 'samplePoint';
@@ -126,7 +126,7 @@ export class LightSourceDetectorDebug {
   private _createClusterLinesInMap(
     lightSamples: LightSample[],
     clusterSegments: number[][],
-    color: ColorRepresentation,
+    color: ColorRepresentation
   ) {
     const lineMaterial = new LineBasicMaterial({ color });
     const points: Vector3[] = [];

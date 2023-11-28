@@ -1,24 +1,21 @@
-import type { SceneVolume } from './render-utility';
+import type { SceneVolume, RenderPass } from './render-utility';
 import { BlurPass } from './render-utility';
 import { BlurShader } from './shader-utility';
 import type { RenderCacheManager } from './render-cache';
 import { VisibilityRenderCache } from './render-cache';
+import { ShadowGroundPlane } from './objects/shadow-ground-plane';
 import type {
-  Camera,
   Group,
   Layers,
   Scene,
-  Texture,
   WebGLRenderer,
+  MeshBasicMaterial,
 } from 'three';
 import {
   CameraHelper,
   DoubleSide,
-  Mesh,
-  MeshBasicMaterial,
   MeshDepthMaterial,
   OrthographicCamera,
-  PlaneGeometry,
   WebGLRenderTarget,
 } from 'three';
 
@@ -39,6 +36,28 @@ export interface BakedGroundContactShadowParameters {
   hardLayers: Layers | null;
   softLayers: Layers | null;
   polygonOffset: number;
+}
+
+export interface BakedGroundContactShadowConstructorParameters {
+  renderPass?: RenderPass;
+  renderCacheManager?: RenderCacheManager;
+  sharedShadowGroundPlane?: ShadowGroundPlane;
+  shadowMapSize?: number;
+  enabled?: boolean;
+  cameraHelper?: boolean;
+  alwaysUpdate?: boolean;
+  fadeIn?: boolean;
+  blurMin?: number;
+  blurMax?: number;
+  fadeoutFalloff?: number;
+  fadeoutBias?: number;
+  opacity?: number;
+  maximumPlaneSize?: number;
+  planeSize?: number;
+  cameraFar?: number;
+  hardLayers?: Layers | null;
+  softLayers?: Layers | null;
+  polygonOffset?: number;
 }
 
 const castGroundContactShadow = (object: any): boolean => {
@@ -64,20 +83,40 @@ export class BakedGroundContactShadow {
   private _shadowScale: number = 1;
   private _groundGroup: Group;
   private _groundShadowFar: number;
-  public shadowGroundPlane: ShadowGroundPlane;
+  private _sharedShadowGroundPlane?: ShadowGroundPlane;
+  private _shadowGroundPlane?: ShadowGroundPlane;
   private _groundContactCamera: GroundContactCamera;
   private _renderTargetBlur: WebGLRenderTarget;
   private _blurPass: BlurPass;
   public readonly renderTarget: WebGLRenderTarget;
   private _depthMaterial: MeshDepthMaterial;
 
-  constructor(_renderer: WebGLRenderer, _groundGroup: Group, parameters: any) {
-    this._groundGroup = _groundGroup;
+  get shadowGroundPlane(): ShadowGroundPlane {
+    let shadowGroundPlaneMesh = this._sharedShadowGroundPlane;
+    if (!shadowGroundPlaneMesh) {
+      this._shadowGroundPlane ??= new ShadowGroundPlane(
+        this.renderTarget.texture,
+        this.parameters
+      );
+      shadowGroundPlaneMesh = this._shadowGroundPlane;
+    }
+    if (shadowGroundPlaneMesh.parent !== this._groundGroup) {
+      this._groundGroup.add(shadowGroundPlaneMesh);
+    }
+    return shadowGroundPlaneMesh;
+  }
+
+  constructor(
+    renderer: WebGLRenderer,
+    groundGroup: Group,
+    parameters: BakedGroundContactShadowConstructorParameters
+  ) {
+    this._groundGroup = groundGroup;
     this.shadowMapSize = parameters.shadowMapSize ?? 2048;
     this.parameters = this._getDefaultParameters(parameters);
     this._groundShadowFar = this.parameters.cameraFar;
-    this._renderer = _renderer;
-    this._renderCacheManager = parameters?._renderCacheManager;
+    this._renderer = renderer;
+    this._renderCacheManager = parameters?.renderCacheManager;
     if (this._renderCacheManager) {
       this._renderCacheManager.registerCache(
         this,
@@ -87,28 +126,23 @@ export class BakedGroundContactShadow {
             (object.name !== undefined &&
               ['Ground', 'Floor'].includes(object.name))
           );
-        }),
+        })
       );
     }
     this.renderTarget = new WebGLRenderTarget(
       this.shadowMapSize,
-      this.shadowMapSize,
+      this.shadowMapSize
     );
     this.renderTarget.texture.generateMipmaps = false;
-    //this.renderTarget.depthTexture = new DepthTexture(this.shadowMapSize, this.shadowMapSize);
-    //this.renderTarget.depthTexture.generateMipmaps = false;
     this._renderTargetBlur = new WebGLRenderTarget(
       this.shadowMapSize,
-      this.shadowMapSize,
+      this.shadowMapSize
     );
     this._renderTargetBlur.texture.generateMipmaps = false;
 
-    this.shadowGroundPlane = new ShadowGroundPlane(
-      this.renderTarget.texture,
-      this.parameters,
-    );
-    this._groundGroup.add(this.shadowGroundPlane);
-
+    this._sharedShadowGroundPlane = parameters?.sharedShadowGroundPlane;
+    this.shadowGroundPlane.setShadowMap(this.renderTarget.texture);
+    this.shadowGroundPlane.updateMaterial(this.parameters);
     this._groundContactCamera = new GroundContactCamera();
     this._groundGroup.add(this._groundContactCamera);
 
@@ -130,7 +164,7 @@ export class BakedGroundContactShadow {
                 'gl_FragColor = vec4( vec3( 1.0 - fragCoordZ ), opacity );',
                 ShadowGroundPlane.alphaMap
                   ? 'gl_FragColor = vec4(clamp(pow(1.0 + fadeoutBias - fragCoordZ, 1.0/(1.0-fadeoutFalloff)), 0.0, 1.0));'
-                  : 'gl_FragColor = vec4(vec3(0.0), clamp(pow(1.0 + fadeoutBias - fragCoordZ, 1.0/(1.0-fadeoutFalloff)), 0.0, 1.0));',
+                  : 'gl_FragColor = vec4(vec3(0.0), clamp(pow(1.0 + fadeoutBias - fragCoordZ, 1.0/(1.0-fadeoutFalloff)), 0.0, 1.0));'
               )}
           `;
     };
@@ -142,7 +176,9 @@ export class BakedGroundContactShadow {
   }
 
   // eslint-disable-next-line complexity
-  private _getDefaultParameters(parameters: any) {
+  private _getDefaultParameters(
+    parameters?: BakedGroundContactShadowConstructorParameters
+  ): BakedGroundContactShadowParameters {
     return {
       enabled: true,
       cameraHelper: false,
@@ -153,7 +189,7 @@ export class BakedGroundContactShadow {
       fadeoutFalloff: 0.9,
       fadeoutBias: 0.03,
       opacity: 0.5,
-      maximumPlaneSize: 20,
+      maximumPlaneSize: 40,
       planeSize: 10,
       cameraFar: 3,
       hardLayers: null,
@@ -171,7 +207,7 @@ export class BakedGroundContactShadow {
     this._depthMaterial.dispose();
   }
 
-  public updateParameters(parameters: any) {
+  public updateParameters(parameters: BakedGroundContactShadowParameters) {
     for (let propertyName in parameters) {
       if (this.parameters.hasOwnProperty(propertyName)) {
         this.parameters[propertyName] = parameters[propertyName];
@@ -223,7 +259,7 @@ export class BakedGroundContactShadow {
       this._groundGroup.position.set(
         sceneBounds.center.x,
         groundLevel ?? 0,
-        sceneBounds.center.z,
+        sceneBounds.center.z
       );
     }
     this._groundGroup.updateMatrixWorld();
@@ -236,20 +272,23 @@ export class BakedGroundContactShadow {
     this.shadowGroundPlane.scale.y = size;
     this._groundContactCamera.updateCameraFormPlaneSize(
       size,
-      this._groundShadowFar,
+      this._groundShadowFar
     );
     this.needsUpdate = true;
   }
 
-  public setGroundVisibility(visible: boolean, _camera?: Camera) {
-    this.shadowGroundPlane.updateVisibility(visible);
+  public setGroundVisibilityLayers(visible: boolean) {
+    this.shadowGroundPlane.setVisibilityLayers(visible);
   }
 
   public render(scene: Scene): void {
     this._groundContactCamera.updateCameraHelper(
       this.parameters.cameraHelper,
-      scene,
+      scene
     );
+    if (!this.parameters.enabled) {
+      return;
+    }
     const maxIterations = 10;
     this.shadowGroundPlane.visible = this.parameters.enabled;
     const needsUpdate = this.parameters.alwaysUpdate || this.needsUpdate;
@@ -290,7 +329,7 @@ export class BakedGroundContactShadow {
     this._groundGroup.visible = true;
     this.shadowGroundPlane.visible = this.parameters.enabled;
     this._groundContactCamera.setCameraHelperVisibility(
-      this.parameters.cameraHelper,
+      this.parameters.cameraHelper
     );
   }
 
@@ -330,7 +369,7 @@ export class BakedGroundContactShadow {
   private _renderBlur() {
     this._renderBlurPass(
       (this._blurScale * this.parameters.blurMin) / this.parameters.planeSize,
-      (this._blurScale * this.parameters.blurMax) / this.parameters.planeSize,
+      (this._blurScale * this.parameters.blurMax) / this.parameters.planeSize
     );
   }
 
@@ -345,85 +384,8 @@ export class BakedGroundContactShadow {
       this._renderer,
       [this.renderTarget, this._renderTargetBlur, this.renderTarget],
       [uvMin, uvMin],
-      [uvMax, uvMax],
+      [uvMax, uvMax]
     );
-  }
-}
-
-export class ShadowGroundPlane extends Mesh {
-  public static alphaMap: boolean = false;
-
-  constructor(shadowMap: Texture | null, parameters?: any) {
-    const planeMaterial = new MeshBasicMaterial({
-      transparent: true,
-      depthWrite: false,
-      //side: DoubleSide
-    });
-    if (ShadowGroundPlane.alphaMap) {
-      planeMaterial.color.set(0x000000);
-    }
-    planeMaterial.polygonOffset = true;
-    super(new PlaneGeometry(1, 1, 10, 10), planeMaterial);
-    this.name = 'GroundContactShadowPlane';
-    this.userData.isFloor = true;
-    this.renderOrder = 1;
-    this.receiveShadow = false;
-    this.layers.disableAll();
-    if (parameters) {
-      this.updateMaterial(parameters);
-    }
-    this.setShadowMap(shadowMap);
-  }
-
-  public setVisibility(visible: boolean) {
-    this.visible = visible;
-    if (this.visible) {
-      this.layers.enableAll();
-    } else {
-      this.layers.disableAll();
-    }
-  }
-
-  public setDepthWrite(write: boolean) {
-    const shadowGroundMaterial = this.material as MeshBasicMaterial;
-    shadowGroundMaterial.depthWrite = write;
-    shadowGroundMaterial.transparent = !write;
-    shadowGroundMaterial.needsUpdate = true;
-    this.setVisibility(write);
-  }
-
-  public setReceiveShadow(receive: boolean) {
-    this.receiveShadow = receive;
-    this.setVisibility(receive);
-  }
-
-  public setShadowMap(shadowMap: Texture | null) {
-    const shadowGroundMaterial = this.material as MeshBasicMaterial;
-    shadowGroundMaterial.map = shadowMap;
-    if (ShadowGroundPlane.alphaMap) {
-      shadowGroundMaterial.alphaMap = shadowMap;
-    }
-    shadowGroundMaterial.needsUpdate = true;
-  }
-
-  public updateMaterial(parameters: any) {
-    const shadowGroundMaterial = this.material as MeshBasicMaterial;
-    if (shadowGroundMaterial.opacity !== parameters.opacity) {
-      shadowGroundMaterial.opacity = parameters.opacity;
-    }
-    if (shadowGroundMaterial.polygonOffsetFactor !== parameters.polygonOffset) {
-      shadowGroundMaterial.polygonOffset = true;
-      shadowGroundMaterial.polygonOffsetFactor = parameters.polygonOffset;
-      shadowGroundMaterial.polygonOffsetUnits = parameters.polygonOffset;
-    }
-  }
-
-  public updateVisibility(visible: boolean) {
-    if (visible) {
-      this.layers.enableAll();
-    } else {
-      this.layers.disableAll();
-    }
   }
 }
 

@@ -45,6 +45,14 @@ export const defaultHBAORenderPassParameters: HBAORenderPassParameters = {
   bias: 0.01,
 };
 
+export interface HBAOPassParameters {
+  [key: string]: any;
+  hbaoParameters?: HBAORenderPassParameters;
+  normalVectorSourceType?: NormalVectorSourceType;
+  depthValueSourceType?: DepthValueSourceType;
+  modulateRedChannel?: boolean;
+}
+
 export class HBAORenderPass {
   public needsUpdate: boolean = true;
   public parameters: HBAORenderPassParameters = {
@@ -52,7 +60,6 @@ export class HBAORenderPass {
   };
   private _width: number = 0;
   private _height: number = 0;
-  private _loaded: boolean = false;
   private _normalVectorSourceType: NormalVectorSourceType =
     NormalVectorSourceType.FLOAT_BUFFER_NORMAL;
   private _depthValueSourceType: DepthValueSourceType =
@@ -69,7 +76,7 @@ export class HBAORenderPass {
     return this._renderTarget ? this._renderTarget?.texture : null;
   }
 
-  constructor(width: number, height: number, parameters?: any) {
+  constructor(width: number, height: number, parameters?: HBAOPassParameters) {
     this._width = width;
     this._height = height;
     this._normalVectorSourceType =
@@ -83,7 +90,7 @@ export class HBAORenderPass {
       this.parameters = parameters.hbaoParameters as HBAORenderPassParameters;
     }
     if (parameters) {
-      this.updateParameters(parameters);
+      this.updateTextures(parameters);
     }
   }
 
@@ -96,13 +103,13 @@ export class HBAORenderPass {
           const x = i;
           const y = j;
 
-          data[(i * size + j) * 4] = (simplex.noise(x, y) + 1.0) * 255.0;
+          data[(i * size + j) * 4] = (simplex.noise(x, y) + 1.0) * 127.5;
           data[(i * size + j) * 4 + 1] =
-            (simplex.noise(x + size, y) + 1.0) * 255.0;
+            (simplex.noise(x + size, y) + 1.0) * 127.5;
           data[(i * size + j) * 4 + 2] =
-            (simplex.noise(x, y + size) + 1.0) * 255.0;
+            (simplex.noise(x, y + size) + 1.0) * 127.5;
           data[(i * size + j) * 4 + 3] =
-            (simplex.noise(x + size, y + size) + 1.0) * 255.0;
+            (simplex.noise(x + size, y + size) + 1.0) * 127.5;
         }
       }
       this._noiseTexture = new DataTexture(
@@ -110,7 +117,7 @@ export class HBAORenderPass {
         size,
         size,
         RGBAFormat,
-        UnsignedByteType,
+        UnsignedByteType
       );
       this._noiseTexture.wrapS = RepeatWrapping;
       this._noiseTexture.wrapT = RepeatWrapping;
@@ -173,10 +180,10 @@ export class HBAORenderPass {
     this._hbaoMaterial.uniforms.tDepth.value = depthTexture;
     this._hbaoMaterial.uniforms.resolution.value.set(this._width, this._height);
     this._hbaoMaterial.uniforms.cameraProjectionMatrix.value.copy(
-      camera.projectionMatrix,
+      camera.projectionMatrix
     );
     this._hbaoMaterial.uniforms.cameraProjectionMatrixInverse.value.copy(
-      camera.projectionMatrixInverse,
+      camera.projectionMatrixInverse
     );
     const currentCamera = camera as PerspectiveCamera | OrthographicCamera;
     this._hbaoMaterial.uniforms.cameraNear.value = currentCamera.near;
@@ -211,13 +218,16 @@ export class HBAORenderPass {
     this.needsUpdate = true;
   }
 
-  public updateParameters(parameters: any) {
+  public updateParameters(parameters: HBAORenderPassParameters) {
     for (let propertyName in parameters) {
       if (this.parameters.hasOwnProperty(propertyName)) {
         this.parameters[propertyName] = parameters[propertyName];
         this.needsUpdate = true;
       }
     }
+  }
+
+  public updateTextures(parameters: HBAOPassParameters) {
     if (parameters.depthTexture) {
       this.depthTexture = parameters.depthTexture;
       this.needsUpdate = true;
@@ -232,14 +242,14 @@ export class HBAORenderPass {
     renderer: WebGLRenderer,
     camera: Camera,
     scene: Scene,
-    renderTarget?: WebGLRenderTarget,
+    renderTarget?: WebGLRenderTarget
   ) {
     const hbaoMaterial = this._getMaterial(camera, this.needsUpdate);
     this.needsUpdate = false;
     this._renderPass.renderScreenSpace(
       renderer,
       hbaoMaterial,
-      renderTarget ? renderTarget : this._getRenderTargets(),
+      renderTarget ? renderTarget : this._getRenderTargets()
     );
   }
 }

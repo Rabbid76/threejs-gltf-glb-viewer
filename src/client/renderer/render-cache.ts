@@ -63,8 +63,10 @@ class RenderCacheMapItem {
   }
 }
 
+export type CacheKey = any;
+
 export class RenderCacheManager {
-  private _cacheMap: Map<any, RenderCacheMapItem> = new Map();
+  private _cacheMap: Map<CacheKey, RenderCacheMapItem> = new Map();
 
   public dispose() {
     this._cacheMap.forEach((cache) => {
@@ -72,7 +74,7 @@ export class RenderCacheManager {
     });
   }
 
-  public registerCache(key: any, cache: RenderCache) {
+  public registerCache(key: CacheKey, cache: RenderCache) {
     this._cacheMap.set(key, new RenderCacheMapItem(cache));
   }
 
@@ -82,14 +84,14 @@ export class RenderCacheManager {
     });
   }
 
-  public clearObjectCache(key: any) {
+  public clearObjectCache(key: CacheKey) {
     const cache = this._cacheMap.get(key);
     if (cache) {
       cache.clear();
     }
   }
 
-  public onBeforeRender(key: any, object3d: Object3D): void {
+  public onBeforeRender(key: CacheKey, object3d: Object3D): void {
     const cache = this._cacheMap.get(key);
     if (cache) {
       cache.update(object3d);
@@ -97,14 +99,14 @@ export class RenderCacheManager {
     }
   }
 
-  public onAfterRender(key: any): void {
+  public onAfterRender(key: CacheKey): void {
     const cache = this._cacheMap.get(key);
     if (cache) {
       cache.onAfterRender();
     }
   }
 
-  public render(key: any, object3d: Object3D, renderMethod: () => void) {
+  public render(key: CacheKey, object3d: Object3D, renderMethod: () => void) {
     const cache = this._cacheMap.get(key);
     if (cache) {
       cache.update(object3d);
@@ -235,6 +237,15 @@ export abstract class ObjectRenderCache implements RenderCache {
 
   public onBeforeRender(): void {
     this._objectCache.forEach((data: ObjectCacheEntry, object: Object3D) => {
+      if (object instanceof Mesh) {
+        // update the cache if the material of the object has changed
+        if (
+          object.material !== data.originalObjectData.material &&
+          object.material !== data.updateObjectData.material
+        ) {
+          data.originalObjectData.material = object.material;
+        }
+      }
       this._updateObject(object, data.updateObjectData);
     });
   }
@@ -247,7 +258,7 @@ export abstract class ObjectRenderCache implements RenderCache {
 
   public addToCache(
     object: Object3D | Mesh,
-    updateObjectData: ObjectCacheData,
+    updateObjectData: ObjectCacheData
   ): void {
     this._objectCache.set(object, {
       originalObjectData: {

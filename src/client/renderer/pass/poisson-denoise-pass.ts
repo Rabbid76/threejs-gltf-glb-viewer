@@ -15,14 +15,14 @@ import {
 import { SimplexNoise } from 'three/examples/jsm/math/SimplexNoise';
 import {
   generatePdSamplePointInitializer,
-  PoissonDenoiseShader,
-  // @ts-ignore -- TS7016: Could not find declaration file
-} from 'three/examples/jsm/shaders/PoissonDenoiseShader.js';
+  poissonDenoiseShader,
+} from '../shaders/poisson-denoise-shader';
 
 export interface PoissonDenoisePassParameters {
   [key: string]: any;
   iterations: number;
   radius: number;
+  radiusExponent: number;
   rings: number;
   lumaPhi: number;
   depthPhi: number;
@@ -34,12 +34,24 @@ export const defaultPoissonDenoisePassParameters: PoissonDenoisePassParameters =
   {
     iterations: 1,
     radius: 10,
+    radiusExponent: 1,
     rings: 4,
     lumaPhi: 10,
-    depthPhi: 12,
-    normalPhi: 3.25,
-    samples: 16,
+    depthPhi: 10,
+    normalPhi: 4,
+    samples: 12,
   };
+
+export interface PoissonDenoiseParameters {
+  [key: string]: any;
+  poissonDenoisePassParameters?: PoissonDenoisePassParameters;
+  normalVectorSourceType?: NormalVectorSourceType;
+  depthValueSourceType?: DepthValueSourceType;
+  rgInputTexture?: boolean;
+  inputTexture?: Texture;
+  depthTexture?: Texture;
+  normalTexture?: Texture;
+}
 
 export class PoissonDenoiseRenderPass implements DenoisePass {
   public needsUpdate: boolean = true;
@@ -72,7 +84,11 @@ export class PoissonDenoiseRenderPass implements DenoisePass {
     this._inputTexture = texture;
   }
 
-  constructor(width: number, height: number, parameters?: any) {
+  constructor(
+    width: number,
+    height: number,
+    parameters?: PoissonDenoiseParameters
+  ) {
     this._width = width;
     this._height = height;
     this._normalVectorSourceType =
@@ -85,11 +101,12 @@ export class PoissonDenoiseRenderPass implements DenoisePass {
     this._inputTexture = parameters?.inputTexture || null;
     this.depthTexture = parameters?.depthTexture || null;
     this.normalTexture = parameters?.normalTexture || null;
-    if (parameters.PoissonDenoisePassParameters) {
+    if (parameters?.poissonDenoisePassParameters) {
       this.parameters =
-        parameters.PoissonDenoisePassParameters as PoissonDenoisePassParameters;
-    } else if (parameters) {
-      this.updateParameters(parameters);
+        parameters.poissonDenoisePassParameters as PoissonDenoisePassParameters;
+    }
+    if (parameters) {
+      this.updateTextures(parameters);
     }
   }
 
@@ -102,13 +119,13 @@ export class PoissonDenoiseRenderPass implements DenoisePass {
           const x = i;
           const y = j;
 
-          data[(i * size + j) * 4] = (simplex.noise(x, y) + 1.0) * 255.0;
+          data[(i * size + j) * 4] = (simplex.noise(x, y) + 1.0) * 127.5;
           data[(i * size + j) * 4 + 1] =
-            (simplex.noise(x + size, y) + 1.0) * 255.0;
+            (simplex.noise(x + size, y) + 1.0) * 127.5;
           data[(i * size + j) * 4 + 2] =
-            (simplex.noise(x, y + size) + 1.0) * 255.0;
+            (simplex.noise(x, y + size) + 1.0) * 127.5;
           data[(i * size + j) * 4 + 3] =
-            (simplex.noise(x + size, y + size) + 1.0) * 255.0;
+            (simplex.noise(x + size, y + size) + 1.0) * 127.5;
         }
       }
       this._noiseTexture = new DataTexture(
@@ -116,24 +133,11 @@ export class PoissonDenoiseRenderPass implements DenoisePass {
         size,
         size,
         RGBAFormat,
-        UnsignedByteType,
+        UnsignedByteType
       );
       this._noiseTexture.wrapS = RepeatWrapping;
       this._noiseTexture.wrapT = RepeatWrapping;
       this._noiseTexture.needsUpdate = true;
-      /*
-      new TextureLoader().load(NoiseTexture, (noiseTexture: Texture) => {
-        noiseTexture.minFilter = NearestFilter;
-        noiseTexture.magFilter = NearestFilter;
-        noiseTexture.wrapS = RepeatWrapping;
-        noiseTexture.wrapT = RepeatWrapping;
-        noiseTexture.colorSpace = NoColorSpace;
-        this._noiseTexture = noiseTexture;
-        if (this._pdMaterial) {
-          this._pdMaterial.uniforms.tNoise.value = noiseTexture;
-        }
-      });
-      */
     }
     return this._noiseTexture;
   }
@@ -142,14 +146,13 @@ export class PoissonDenoiseRenderPass implements DenoisePass {
     let updateShader = needsUpdate;
     if (!this._pdMaterial) {
       this._pdMaterial = new ShaderMaterial({
-        defines: Object.assign({}, PoissonDenoiseShader.defines),
-        uniforms: UniformsUtils.clone(PoissonDenoiseShader.uniforms),
-        vertexShader: PoissonDenoiseShader.vertexShader,
-        fragmentShader: PoissonDenoiseShader.fragmentShader,
+        defines: Object.assign({}, poissonDenoiseShader.defines),
+        uniforms: UniformsUtils.clone(poissonDenoiseShader.uniforms),
+        vertexShader: poissonDenoiseShader.vertexShader,
+        fragmentShader: poissonDenoiseShader.fragmentShader,
         depthTest: false,
         depthWrite: false,
       });
-      this._pdMaterial.defines.SAMPLE_LUMINANCE = '(a.r * a.g)';
       this._pdMaterial.uniforms.tNoise.value = this._getNoiseTexture();
       updateShader = true;
     }
@@ -158,7 +161,7 @@ export class PoissonDenoiseRenderPass implements DenoisePass {
       this._pdMaterial.defines.SAMPLE_VECTORS =
         generatePdSamplePointInitializer(
           this.parameters.samples,
-          this.parameters.rings,
+          this.parameters.rings
         );
       this._pdMaterial.defines.NORMAL_VECTOR_TYPE =
         this._normalVectorSourceType ===
@@ -179,13 +182,18 @@ export class PoissonDenoiseRenderPass implements DenoisePass {
     this._pdMaterial.uniforms.tNormal.value = this.normalTexture as Texture;
     this._pdMaterial.uniforms.tDepth.value = depthTexture;
     this._pdMaterial.uniforms.resolution.value.set(this._width, this._height);
+    this._pdMaterial.uniforms.cameraProjectionMatrix.value.copy(
+      camera.projectionMatrix
+    );
     this._pdMaterial.uniforms.cameraProjectionMatrixInverse.value.copy(
-      camera.projectionMatrixInverse,
+      camera.projectionMatrixInverse
     );
     this._pdMaterial.uniforms.lumaPhi.value = this.parameters.lumaPhi;
     this._pdMaterial.uniforms.depthPhi.value = this.parameters.depthPhi;
     this._pdMaterial.uniforms.normalPhi.value = this.parameters.normalPhi;
     this._pdMaterial.uniforms.radius.value = this.parameters.radius;
+    this._pdMaterial.uniforms.radiusExponent.value =
+      this.parameters.radiusExponent;
     return this._pdMaterial;
   }
 
@@ -218,13 +226,16 @@ export class PoissonDenoiseRenderPass implements DenoisePass {
     this.needsUpdate = true;
   }
 
-  public updateParameters(parameters: any) {
+  public updateParameters(parameters: PoissonDenoisePassParameters) {
     for (let propertyName in parameters) {
       if (this.parameters.hasOwnProperty(propertyName)) {
         this.parameters[propertyName] = parameters[propertyName];
         this.needsUpdate = true;
       }
     }
+  }
+
+  public updateTextures(parameters: PoissonDenoiseParameters) {
     if (parameters.inputTexture) {
       this._inputTexture = parameters.inputTexture;
       this.needsUpdate = true;
@@ -254,7 +265,7 @@ export class PoissonDenoiseRenderPass implements DenoisePass {
         pdMaterial,
         outputRenderTarget,
         0xffffff,
-        1.0,
+        1.0
       );
     }
   }

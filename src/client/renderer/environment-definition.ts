@@ -8,16 +8,36 @@ import { EnvironmentPmremGenertor } from './pmrem-environment';
 import type { WebGLRenderer, WebGLRenderTarget } from 'three';
 import { CubeTexture, Scene, Texture, Vector2 } from 'three';
 
+export interface EnvironmentDefinitionTextureData {
+  _width: number;
+  _height: number;
+  data: number[];
+}
+
+interface EnvironmentDefinitionParameters {
+  textureData?: EnvironmentDefinitionTextureData;
+  rotation?: number;
+  intensity?: number;
+  maxNoOfLightSources?: number;
+}
+
+export abstract class EnvironmentSceneGenerator {
+  abstract generateScene(intensity: number, rotation: number): Scene;
+}
+
 export class EnvironmentDefinition {
   public needsUpdate = true;
-  public readonly environmentScene?: Scene;
+  public readonly environmentSceneGenerator?: EnvironmentSceneGenerator;
   public readonly equirectangularTexture?: Texture;
   public readonly cubeTexture?: CubeTexture;
-  public readonly textureData?: any;
+  public readonly textureData?: EnvironmentDefinitionTextureData;
   private _rotation;
   private _intensity;
+  private _maxNoOfLightSources?: number;
   private _lightSources: LightSource[] = [];
   private _debugScene?: Scene;
+  private _parameters?: EnvironmentDefinitionParameters;
+  private _environment: EnvironmentSceneGenerator | CubeTexture | Texture;
 
   get lightSources(): LightSource[] {
     return this._lightSources;
@@ -37,9 +57,23 @@ export class EnvironmentDefinition {
     }
   }
 
-  constructor(environment: Scene | CubeTexture | Texture, parameters?: any) {
-    if (environment instanceof Scene) {
-      this.environmentScene = environment;
+  set maxNoOfLightSources(maxNoOfLightSources: number) {
+    if (this._maxNoOfLightSources !== maxNoOfLightSources) {
+      this._maxNoOfLightSources = maxNoOfLightSources;
+      this.needsUpdate = true;
+    }
+  }
+
+  get maxNoOfLightSources(): number | undefined {
+    return this._maxNoOfLightSources;
+  }
+
+  constructor(
+    environment: EnvironmentSceneGenerator | CubeTexture | Texture,
+    parameters?: EnvironmentDefinitionParameters
+  ) {
+    if (environment instanceof EnvironmentSceneGenerator) {
+      this.environmentSceneGenerator = environment;
     } else if (environment instanceof CubeTexture) {
       this.cubeTexture = environment;
     } else if (environment instanceof Texture) {
@@ -50,6 +84,15 @@ export class EnvironmentDefinition {
     }
     this._rotation = parameters?.rotation ?? 0;
     this._intensity = parameters?.intensity ?? 1;
+    if (parameters?.maxNoOfLightSources !== undefined) {
+      this._maxNoOfLightSources = parameters.maxNoOfLightSources;
+    }
+    this._parameters = parameters;
+    this._environment = environment;
+  }
+
+  clone() {
+    return new EnvironmentDefinition(this._environment, this._parameters);
   }
 
   public createNewEnvironment(renderer: WebGLRenderer): Texture | null {
@@ -74,13 +117,16 @@ export class EnvironmentDefinition {
         {
           rotation: this._rotation,
           intensity: this._intensity,
-        },
+        }
       );
     } else if (this.cubeTexture) {
       pmremRenderTarget = pmremGenerator.fromCubemap(this.cubeTexture);
-    } else if (this.environmentScene) {
-      this.environmentScene.rotation.y = this._rotation;
-      pmremRenderTarget = pmremGenerator.fromScene(this.environmentScene, 0.04);
+    } else if (this.environmentSceneGenerator) {
+      const environmentScene = this.environmentSceneGenerator.generateScene(
+        this._intensity,
+        this._rotation
+      );
+      pmremRenderTarget = pmremGenerator.fromScene(environmentScene, 0.04);
     }
     this._debugScene = undefined;
     this.needsUpdate = false;
@@ -89,14 +135,14 @@ export class EnvironmentDefinition {
 
   private _detectLightSources(
     renderer: WebGLRenderer,
-    pmremTexture?: Texture,
+    pmremTexture?: Texture
   ): LightSourceDetector {
     const lightSourceDetector = new LightSourceDetector();
     if (this.equirectangularTexture && this.rotation === 0) {
       lightSourceDetector.detectLightSources(
         renderer,
         this.equirectangularTexture,
-        this.textureData,
+        this.textureData
       );
     } else if (pmremTexture) {
       lightSourceDetector.detectLightSources(renderer, pmremTexture);
@@ -114,10 +160,10 @@ export class EnvironmentDefinition {
     LightSourceDetectorDebug.createPlane(this._debugScene, planeMaterial);
     const lightSourceDetector = this._detectLightSources(
       renderer,
-      scene.environment as Texture,
+      scene.environment as Texture
     );
     const lightSourceDetectorDebug = new LightSourceDetectorDebug(
-      lightSourceDetector,
+      lightSourceDetector
     );
     lightSourceDetectorDebug.createDebugScene(this._debugScene);
     return this._debugScene;

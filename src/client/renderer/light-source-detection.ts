@@ -12,6 +12,7 @@ import {
   Vector3,
   WebGLRenderTarget,
 } from 'three';
+import type { EnvironmentDefinitionTextureData } from './environment-definition';
 
 export const sphereToEquirectangular = (pointOnSphere: Vector3): Vector2 => {
   const u = Math.atan2(pointOnSphere.y, pointOnSphere.x) / (2 * Math.PI) + 0.5;
@@ -26,7 +27,7 @@ export const equirectangularToSphere = (uv: Vector2): Vector3 => {
   return new Vector3(
     Math.cos(theta) * length,
     Math.sin(theta) * length,
-    Math.sin(phi),
+    Math.sin(phi)
   );
 };
 
@@ -57,7 +58,7 @@ export class TextureConverter {
   }
 
   public environmentMapDecodeMaterial(
-    decodePmrem: boolean,
+    decodePmrem: boolean
   ): EnvironmentMapDecodeMaterial {
     if (decodePmrem) {
       this._equirectangularDecodeMaterial =
@@ -81,14 +82,14 @@ export class TextureConverter {
     renderer: WebGLRenderer,
     texture: Texture,
     targetWidth: number,
-    targetHeight: number,
+    targetHeight: number
   ): TextureConverterResult {
     this.colorRenderTarget.setSize(targetWidth, targetHeight);
     this._planeMesh =
       this._planeMesh ??
       new Mesh(
         new PlaneGeometry(2, 2),
-        new MeshBasicMaterial({ map: texture }),
+        new MeshBasicMaterial({ map: texture })
       );
     const renderTargetBackup = renderer.getRenderTarget();
     renderer.setRenderTarget(this.colorRenderTarget);
@@ -102,7 +103,7 @@ export class TextureConverter {
       0,
       targetWidth,
       targetHeight,
-      pixelBuffer,
+      pixelBuffer
     );
     return { texture: colorTexture, pixels: pixelBuffer };
   }
@@ -111,10 +112,10 @@ export class TextureConverter {
     renderer: WebGLRenderer,
     texture: Texture,
     targetWidth: number,
-    targetHeight: number,
+    targetHeight: number
   ): TextureConverterResult {
     const decodeMaterial = this.environmentMapDecodeMaterial(
-      texture.name === 'PMREM.cubeUv',
+      texture.name === 'PMREM.cubeUv'
     );
     this.environmentMapDecodeTarget.setSize(targetWidth, targetHeight);
     decodeMaterial.setSourceTexture(texture);
@@ -132,7 +133,7 @@ export class TextureConverter {
       0,
       targetWidth,
       targetHeight,
-      pixelBuffer,
+      pixelBuffer
     );
     return { texture: grayscaleTexture, pixels: pixelBuffer };
   }
@@ -235,6 +236,13 @@ export class EnvironmentMapDecodeMaterial extends ShaderMaterial {
   }
 }
 
+export interface LightSourceDetectorParameters {
+  _numberOfSamples?: number;
+  _width?: number;
+  _height?: number;
+  _sampleThreshold?: number;
+}
+
 export class LightSourceDetector {
   private _numberOfSamples: number;
   private _width: number;
@@ -256,7 +264,7 @@ export class LightSourceDetector {
   public lightGraph: LightGraph = new LightGraph(0);
   public lightSources: LightSource[] = [];
 
-  constructor(parameters?: any) {
+  constructor(parameters?: LightSourceDetectorParameters) {
     this._numberOfSamples = parameters?._numberOfSamples ?? 1000;
     this._width = parameters?._width ?? 1024;
     this._height = parameters?._height ?? 512;
@@ -265,17 +273,17 @@ export class LightSourceDetector {
       Math.sqrt(4 * Math.PI) / Math.sqrt(this._numberOfSamples);
     this.pixelDistance = (Math.sqrt(2) * Math.PI * 2) / this._width;
     this.samplePoints = this._createEquirectangularSamplePoints(
-      this._numberOfSamples,
+      this._numberOfSamples
     );
     this.sampleUVs = this.samplePoints.map((point) =>
-      sphereToEquirectangular(point),
+      sphereToEquirectangular(point)
     );
   }
 
   public detectLightSources(
     renderer: WebGLRenderer,
     equirectangularTexture: Texture,
-    textureData?: any,
+    textureData?: EnvironmentDefinitionTextureData
   ) {
     this.textureData = textureData;
     this._textureConverter = this._textureConverter ?? new TextureConverter();
@@ -283,31 +291,31 @@ export class LightSourceDetector {
       renderer,
       equirectangularTexture,
       this._width,
-      this._height,
+      this._height
     );
     this.detectorArray = this._redFromRgbaToNormalizedFloatArray(
-      this.grayscaleTexture.pixels,
+      this.grayscaleTexture.pixels
     );
     this.detectorTexture = this._grayscaleTextureFromFloatArray(
       this.detectorArray,
       this._width,
-      this._height,
+      this._height
     );
     this.lightSamples = this._filterLightSamples(this._sampleThreshold);
     this.lightGraph = this._findClusterSegments(
       this.lightSamples,
-      this._sampleThreshold,
+      this._sampleThreshold
     );
     this.lightGraph.findConnectedComponents();
     this.lightSources = this.createLightSourcesFromLightGraph(
       this.lightSamples,
-      this.lightGraph,
+      this.lightGraph
     );
     this.lightSources.sort((a, b) => b.maxIntensity - a.maxIntensity);
   }
 
   private _createEquirectangularSamplePoints = (
-    numberOfPoints: number,
+    numberOfPoints: number
   ): Vector3[] => {
     const points: Vector3[] = [];
     for (let i = 0; i < numberOfPoints; i++) {
@@ -323,7 +331,7 @@ export class LightSourceDetector {
 
   private _redFromRgbaToNormalizedFloatArray(
     rgba: Uint8Array,
-    exponent?: number,
+    exponent?: number
   ): Float32Array {
     const floatArray = new Float32Array(rgba.length / 4);
     let minimumValue = 1;
@@ -352,7 +360,7 @@ export class LightSourceDetector {
   private _grayscaleTextureFromFloatArray(
     floatArray: Float32Array,
     _width: number,
-    _height: number,
+    _height: number
   ): Texture {
     const noOfPixels = _width * _height;
     const uint8data = new Uint8Array(4 * noOfPixels);
@@ -415,7 +423,7 @@ export class LightSourceDetector {
 
   private _findClusterSegments(
     samples: LightSample[],
-    threshold: number,
+    threshold: number
   ): LightGraph {
     const stepDistance = this.pixelDistance * 2;
     const maxDistance = this.pointDistance * 1.5;
@@ -432,7 +440,7 @@ export class LightSourceDetector {
           for (let k = 1; k < steps; k++) {
             const step = direction.clone().multiplyScalar(k / steps);
             const uv = sphereToEquirectangular(
-              samples[i].position.clone().add(step).normalize(),
+              samples[i].position.clone().add(step).normalize()
             );
             const value = this._detectorTextureLuminanceValueFromUV(uv);
             if (value < threshold) {
@@ -458,18 +466,17 @@ export class LightSourceDetector {
 
   private createLightSourcesFromLightGraph(
     samples: LightSample[],
-    lightGraph: LightGraph,
+    lightGraph: LightGraph
   ): LightSource[] {
     const lightSources: LightSource[] = lightGraph.components
       .filter((component) => component.length > 1)
       .map(
-        (component) =>
-          new LightSource(component.map((index) => samples[index])),
+        (component) => new LightSource(component.map((index) => samples[index]))
       );
     lightSources.forEach((lightSource) =>
       lightSource.calculateLightSourceProperties((uv) =>
-        this._originalLuminanceValueFromUV(uv),
-      ),
+        this._originalLuminanceValueFromUV(uv)
+      )
     );
     return lightSources;
   }
@@ -535,7 +542,7 @@ export class LightSource {
   }
 
   public calculateLightSourceProperties(
-    luminanceFunction: (uv: Vector2) => number,
+    luminanceFunction: (uv: Vector2) => number
   ) {
     this.position = new Vector3();
     this.averageIntensity = 0;

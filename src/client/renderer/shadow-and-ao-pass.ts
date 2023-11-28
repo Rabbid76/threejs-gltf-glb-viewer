@@ -13,7 +13,7 @@ import {
 } from './pass/pass-utility';
 import {
   CameraUpdate,
-  generateUniformKernelRotations,
+  generateMagicSquareDistributedKernelRotations,
   RenderPass,
   spiralQuadraticSampleKernel,
 } from './render-utility';
@@ -40,7 +40,6 @@ import {
   CustomBlending,
   LinearFilter,
   Matrix4,
-  NearestFilter,
   NoBlending,
   RGFormat,
   ShaderMaterial,
@@ -81,6 +80,7 @@ export interface ShadowAndAoPassParameters {
   aoOnGround: boolean;
   shadowOnGround: boolean;
   alwaysUpdate: boolean;
+  progressiveDenoiseIterations: number;
   shAndAo: ShadowAndAoParameters;
   hbao: HBAORenderPassParameters;
   poissonDenoise: PoissonDenoisePassParameters;
@@ -103,7 +103,24 @@ export const defaultPassParameters = {
   aoOnGround: true,
   shadowOnGround: false,
   alwaysUpdate: false,
+  progressiveDenoiseIterations: 0,
 };
+
+export interface ShadowAndAoPassConstructorParameters {
+  gBufferRenderTarget?: GBufferRenderTargets;
+  renderPass?: RenderPass;
+  enabled?: boolean;
+  aoType?: AmbientOcclusionType;
+  aoIntensity?: number;
+  shadowIntensity?: number;
+  aoOnGround?: boolean;
+  shadowOnGround?: boolean;
+  alwaysUpdate?: boolean;
+  progressiveDenoiseIterations?: number;
+  shAndAo?: ShadowAndAoParameters;
+  hbao?: HBAORenderPassParameters;
+  poissonDenoise?: PoissonDenoisePassParameters;
+}
 
 export class ShadowAndAoPass {
   // prettier-ignore
@@ -122,9 +139,9 @@ export class ShadowAndAoPass {
   private _sharedGBufferRenderTarget?: GBufferRenderTargets;
   private _gBufferRenderTarget?: GBufferRenderTargets;
   public shadowAndAoRenderTargets: ShadowAndAoRenderTargets;
-  private _hbaoEffect?: HBAORenderPass;
+  private _hbaoPass?: HBAORenderPass;
   private _fadeRenderTarget?: WebGLRenderTarget;
-  public poissonDenoiseEffect?: PoissonDenoiseRenderPass;
+  private _poissonDenoisePass?: PoissonDenoiseRenderPass;
   private _copyMaterial: CopyTransformMaterial;
   private _blendMaterial: CopyTransformMaterial;
   private _cameraUpdate: CameraUpdate = new CameraUpdate();
@@ -136,18 +153,17 @@ export class ShadowAndAoPass {
     this._gBufferRenderTarget =
       this._gBufferRenderTarget ??
       new GBufferRenderTargets(undefined, {
-        _width: this._width,
-        _height: this._height,
-        _samples: this._samples,
-        _renderPass: this._renderPass,
-        textureFilter: NearestFilter,
+        width: this._width,
+        height: this._height,
+        samples: this._samples,
+        renderPass: this._renderPass,
       });
     return this._gBufferRenderTarget;
   }
 
-  public get HBAORenderPass(): HBAORenderPass {
-    if (!this._hbaoEffect) {
-      this._hbaoEffect = new HBAORenderPass(this._width, this._height, {
+  public get hbaoRenderPass(): HBAORenderPass {
+    if (!this._hbaoPass) {
+      this._hbaoPass = new HBAORenderPass(this._width, this._height, {
         normalVectorSourceType: this.gBufferRenderTarget
           .isFloatGBufferWithRgbNormalAlphaDepth
           ? NormalVectorSourceType.FLOAT_BUFFER_NORMAL
@@ -160,7 +176,7 @@ export class ShadowAndAoPass {
         hbaoParameters: this.parameters.hbao,
       });
     }
-    return this._hbaoEffect;
+    return this._hbaoPass;
   }
 
   public get fadeRenderTarget(): WebGLRenderTarget {
@@ -175,8 +191,8 @@ export class ShadowAndAoPass {
   }
 
   public get denoisePass(): DenoisePass {
-    if (!this.poissonDenoiseEffect) {
-      this.poissonDenoiseEffect = new PoissonDenoiseRenderPass(
+    if (!this._poissonDenoisePass) {
+      this._poissonDenoisePass = new PoissonDenoiseRenderPass(
         this._width,
         this._height,
         {
@@ -192,11 +208,15 @@ export class ShadowAndAoPass {
             ? DepthValueSourceType.NORMAL_VECTOR_ALPHA
             : DepthValueSourceType.SEPARATE_BUFFER,
           rgInputTexture: true,
-          PoissonDenoisePassParameters: this.parameters.poissonDenoise,
-        },
+          poissonDenoisePassParameters: this.parameters.poissonDenoise,
+        }
       );
+    } else {
+      const denoisePass = this._poissonDenoisePass as PoissonDenoiseRenderPass;
+      denoisePass.depthTexture = this.gBufferRenderTarget.depthBufferTexture;
+      denoisePass.normalTexture = this.gBufferRenderTarget.gBufferTexture;
     }
-    return this.poissonDenoiseEffect;
+    return this._poissonDenoisePass;
   }
 
   public get denoiseRenderTargetTexture(): Texture | null {
@@ -207,7 +227,7 @@ export class ShadowAndAoPass {
     width: number,
     height: number,
     samples: number,
-    parameters?: any,
+    parameters?: ShadowAndAoPassConstructorParameters
   ) {
     if (parameters?.gBufferRenderTarget) {
       this._sharedGBufferRenderTarget = parameters?.gBufferRenderTarget;
@@ -215,10 +235,10 @@ export class ShadowAndAoPass {
     this._width = width;
     this._height = height;
     this._samples = samples;
-    this._renderPass = parameters?.enderPass ?? new RenderPass();
+    this._renderPass = parameters?.renderPass ?? new RenderPass();
     this.shadowAndAoRenderTargets = new ShadowAndAoRenderTargets(
       this.gBufferRenderTarget,
-      { ...parameters, width, height, samples, renderPass: this._renderPass },
+      { ...parameters, width, height, samples, renderPass: this._renderPass }
     );
     this.parameters = {
       enabled: parameters?.enabled ?? defaultPassParameters.enabled,
@@ -231,28 +251,30 @@ export class ShadowAndAoPass {
         parameters?.shadowOnGround ?? defaultPassParameters.shadowOnGround,
       alwaysUpdate:
         parameters?.alwaysUpdate ?? defaultPassParameters.alwaysUpdate,
+      progressiveDenoiseIterations:
+        parameters?.progressiveDenoiseIterations ??
+        defaultPassParameters.progressiveDenoiseIterations,
       shAndAo: this.shadowAndAoRenderTargets.shadowAndAoParameters,
       hbao: {
         ...defaultHBAORenderPassParameters,
       },
       poissonDenoise: {
         ...defaultPoissonDenoisePassParameters,
-        //radius: 8,
       },
     };
     this._copyMaterial = new CopyTransformMaterial();
     this._blendMaterial = new CopyTransformMaterial(
       {},
-      CopyMaterialBlendMode.DEFAULT,
+      CopyMaterialBlendMode.DEFAULT
     );
   }
 
   public dispose() {
     this._gBufferRenderTarget?.dispose();
     this.shadowAndAoRenderTargets.dispose();
-    this._hbaoEffect?.dispose();
+    this._hbaoPass?.dispose();
     this._fadeRenderTarget?.dispose();
-    this.poissonDenoiseEffect?.dispose();
+    this._poissonDenoisePass?.dispose();
     this._copyMaterial?.dispose();
     this._blendMaterial?.dispose();
   }
@@ -262,13 +284,13 @@ export class ShadowAndAoPass {
     this._height = height;
     this._gBufferRenderTarget?.setSize(width, height);
     this.shadowAndAoRenderTargets.setSize(width, height);
-    this._hbaoEffect?.setSize(width, height);
+    this._hbaoPass?.setSize(width, height);
     this._fadeRenderTarget?.setSize(width, height);
-    this.poissonDenoiseEffect?.setSize(this._width, this._height);
+    this._poissonDenoisePass?.setSize(this._width, this._height);
     this.needsUpdate = true;
   }
 
-  public updateParameters(parameters: any) {
+  public updateParameters(parameters: ShadowAndAoPassParameters) {
     if (parameters.enabled !== undefined) {
       this.parameters.enabled = parameters.enabled;
     }
@@ -293,7 +315,7 @@ export class ShadowAndAoPass {
     this._updatePassParameters(parameters);
   }
 
-  private _updatePassParameters(parameters: any) {
+  private _updatePassParameters(parameters: ShadowAndAoPassParameters) {
     if (parameters?.shAndAo) {
       for (let propertyName in parameters.shAndAo) {
         if (this.parameters.shAndAo.hasOwnProperty(propertyName)) {
@@ -303,16 +325,60 @@ export class ShadowAndAoPass {
         }
       }
     }
-    if (parameters?.ssao) {
-      this._hbaoEffect?.updateParameters(parameters?.hbao);
+    if (parameters?.hbao) {
+      if (this._hbaoPass) {
+        this._hbaoPass?.updateParameters(parameters?.hbao);
+      } else {
+        for (let propertyName in parameters.hbao) {
+          if (this.parameters.hbao.hasOwnProperty(propertyName)) {
+            this.parameters.hbao[propertyName] = parameters.hbao[propertyName];
+          }
+        }
+      }
     }
     if (parameters?.poissonDenoise) {
-      this.poissonDenoiseEffect?.updateParameters(parameters?.poissonDenoise);
+      if (this._poissonDenoisePass) {
+        this._poissonDenoisePass?.updateParameters(parameters?.poissonDenoise);
+      } else {
+        for (let propertyName in parameters.poissonDenoise) {
+          if (this.parameters.poissonDenoise.hasOwnProperty(propertyName)) {
+            this.parameters.poissonDenoise[propertyName] =
+              parameters.poissonDenoise[propertyName];
+          }
+        }
+      }
     }
   }
 
   public updateBounds(sceneBounds: SceneVolume, _shadowAndAoScale: number) {
     this.shadowAndAoRenderTargets.updateBounds(sceneBounds, _shadowAndAoScale);
+  }
+
+  private _getRenderConditions(
+    shadowFadeInBlurType: ShadowBlurType = ShadowBlurType.FULL,
+    shadowFadeInMix: number = 0,
+    noOStaticFrames: number = 0
+  ) {
+    const fadeInPoissonShadow =
+      shadowFadeInBlurType === ShadowBlurType.POISSON &&
+      shadowFadeInMix > 0.001;
+    const fadeInHardShadow =
+      shadowFadeInBlurType === ShadowBlurType.HARD &&
+      shadowFadeInMix > 0.001 &&
+      shadowFadeInMix < 0.999;
+    const onlyHardShadow =
+      shadowFadeInBlurType === ShadowBlurType.HARD && !fadeInHardShadow;
+    const progressiveDenoise =
+      !fadeInPoissonShadow &&
+      !fadeInHardShadow &&
+      noOStaticFrames > 1 &&
+      noOStaticFrames <= this.parameters.progressiveDenoiseIterations + 1;
+    return {
+      fadeInPoissonShadow,
+      fadeInHardShadow,
+      onlyHardShadow,
+      progressiveDenoise,
+    };
   }
 
   public render(
@@ -323,52 +389,60 @@ export class ShadowAndAoPass {
     shadowBlurType: ShadowBlurType = ShadowBlurType.FULL,
     shadowFadeInBlurType: ShadowBlurType = ShadowBlurType.FULL,
     shadowFadeInMix: number = 0,
+    noOStaticFrames: number = 0
   ): void {
     if (!this._setRenderState()) {
       return;
     }
+    const renderConditions = this._getRenderConditions(
+      shadowFadeInBlurType,
+      shadowFadeInMix,
+      noOStaticFrames
+    );
     let needsDenoise = false;
-    const fadeInPoissonShadow =
-      shadowFadeInBlurType === ShadowBlurType.POISSON &&
-      shadowFadeInMix > 0.001;
-    const fadeInHardShadow =
-      shadowFadeInBlurType === ShadowBlurType.HARD &&
-      shadowFadeInMix > 0.001 &&
-      shadowFadeInMix < 0.999;
-    const onlyHardShadow =
-      shadowFadeInBlurType === ShadowBlurType.HARD && !fadeInHardShadow;
     if (
-      !onlyHardShadow &&
+      !renderConditions.onlyHardShadow &&
       shadowBlurType === ShadowBlurType.FULL &&
       this._evaluateIfUpdateIsNeeded(camera)
     ) {
       this._renderShadowAndAo(renderer, scene, camera, shadowMapTexture);
       needsDenoise = true;
     }
-    let finalTexture: Texture | null = onlyHardShadow
+    let finalTexture: Texture | null = renderConditions.onlyHardShadow
       ? shadowMapTexture
       : this.denoiseRenderTargetTexture;
-    if (fadeInPoissonShadow) {
+    if (renderConditions.fadeInPoissonShadow) {
       finalTexture = this._renderDynamicShadow(
         renderer,
         this.shadowAndAoRenderTargets.passRenderTarget.texture,
         shadowMapTexture,
-        shadowFadeInMix,
+        shadowFadeInMix
       );
       needsDenoise = true;
     }
     if (needsDenoise) {
-      finalTexture = this._renderDenoise(renderer, camera, fadeInPoissonShadow);
+      finalTexture = this._renderDenoise(
+        renderer,
+        camera,
+        renderConditions.fadeInPoissonShadow,
+        false
+      );
+    } else if (renderConditions.progressiveDenoise) {
+      finalTexture = this._renderDenoise(renderer, camera, false, true);
     }
-    if (fadeInHardShadow) {
+    if (renderConditions.fadeInHardShadow) {
       finalTexture = this._renderDynamicShadow(
         renderer,
         this.denoiseRenderTargetTexture,
         shadowMapTexture,
-        shadowFadeInMix,
+        shadowFadeInMix
       );
     }
-    this._renderToTarget(renderer, finalTexture, onlyHardShadow);
+    this._renderToTarget(
+      renderer,
+      finalTexture,
+      renderConditions.onlyHardShadow
+    );
   }
 
   private _setRenderState(): boolean {
@@ -386,11 +460,11 @@ export class ShadowAndAoPass {
       return false;
     }
     if (this.needsUpdate) {
-      if (this._hbaoEffect) {
-        this._hbaoEffect.needsUpdate = true;
+      if (this._hbaoPass) {
+        this._hbaoPass.needsUpdate = true;
       }
-      if (this.poissonDenoiseEffect) {
-        this.poissonDenoiseEffect.needsUpdate = true;
+      if (this._poissonDenoisePass) {
+        this._poissonDenoisePass.needsUpdate = true;
       }
     }
     return true;
@@ -410,7 +484,7 @@ export class ShadowAndAoPass {
     renderer: WebGLRenderer,
     scene: Scene,
     camera: Camera,
-    shadowMapTexture: Texture,
+    shadowMapTexture: Texture
   ): void {
     this.gBufferRenderTarget.render(renderer, scene, camera);
     this.shadowAndAoRenderTargets.render(renderer, camera, shadowMapTexture);
@@ -420,7 +494,7 @@ export class ShadowAndAoPass {
   private _renderAoEffect(
     renderer: WebGLRenderer,
     scene: Scene,
-    camera: Camera,
+    camera: Camera
   ): void {
     if (this.parameters.aoType !== AmbientOcclusionType.HBAO) {
       return;
@@ -430,7 +504,7 @@ export class ShadowAndAoPass {
     const renderTarget = this.shadowAndAoRenderTargets.passRenderTarget;
     const autoClear = renderer.autoClear;
     renderer.autoClear = false;
-    const hbaoEffect = this.HBAORenderPass;
+    const hbaoEffect = this.hbaoRenderPass;
     hbaoEffect.depthTexture = depthTexture;
     hbaoEffect.normalTexture = normalTexture;
     hbaoEffect.render(renderer, camera, scene, renderTarget);
@@ -441,7 +515,7 @@ export class ShadowAndAoPass {
     renderer: WebGLRenderer,
     passTexture: Texture | null,
     shadowMapTexture: Texture | null,
-    shadowFadeInMix: number = 1,
+    shadowFadeInMix: number = 1
   ): Texture {
     const fade = shadowFadeInMix < 0.999;
     if (fade) {
@@ -454,7 +528,7 @@ export class ShadowAndAoPass {
       this._renderPass.renderScreenSpace(
         renderer,
         this._copyMaterial,
-        this.fadeRenderTarget,
+        this.fadeRenderTarget
       );
     }
     if (shadowFadeInMix > 0.001) {
@@ -473,7 +547,7 @@ export class ShadowAndAoPass {
       this._renderPass.renderScreenSpace(
         renderer,
         this._blendMaterial,
-        this.fadeRenderTarget,
+        this.fadeRenderTarget
       );
     }
     return this.fadeRenderTarget.texture;
@@ -483,18 +557,22 @@ export class ShadowAndAoPass {
     renderer: WebGLRenderer,
     camera: Camera,
     fadeInShadow: boolean,
+    progressiveDenoise: boolean
   ): Texture | null {
-    this.denoisePass.inputTexture = fadeInShadow
+    const denoisePass = this.denoisePass;
+    denoisePass.inputTexture = fadeInShadow
       ? this.fadeRenderTarget.texture
-      : this.shadowAndAoRenderTargets.passRenderTarget.texture;
-    this.denoisePass.render(renderer, camera);
-    return this.denoisePass.texture;
+      : progressiveDenoise
+        ? denoisePass.texture
+        : this.shadowAndAoRenderTargets.passRenderTarget.texture;
+    denoisePass.render(renderer, camera);
+    return denoisePass.texture;
   }
 
   private _renderToTarget(
     renderer: WebGLRenderer,
     finalTexture: Texture | null,
-    onlyHardShadow: boolean,
+    onlyHardShadow: boolean
   ): void {
     const redChannel = onlyHardShadow
       ? this.parameters.shadowIntensity
@@ -508,9 +586,17 @@ export class ShadowAndAoPass {
         colorTransform: interpolationMatrix(redChannel, greenChannel, 0, 1),
         multiplyChannels: 1,
       }),
-      renderer.getRenderTarget(),
+      renderer.getRenderTarget()
     );
   }
+}
+
+export interface ShadowAndAoRenderTargetsParameters {
+  width?: number;
+  height?: number;
+  samples?: number;
+  renderPass?: RenderPass;
+  shAndAo?: ShadowAndAoParameters;
 }
 
 export class ShadowAndAoRenderTargets {
@@ -559,29 +645,37 @@ export class ShadowAndAoRenderTargets {
   }
 
   private get noiseTexture(): DataTexture {
-    this._noiseTexture = this._noiseTexture ?? generateUniformKernelRotations();
+    this._noiseTexture =
+      this._noiseTexture ?? generateMagicSquareDistributedKernelRotations(5);
     return this._noiseTexture;
   }
 
   private get sampleKernel(): Vector3[] {
     if (!this._sampleKernel.length) {
       this._sampleKernel = spiralQuadraticSampleKernel(
-        ShadowAndAoRenderMaterial.kernelSize,
+        ShadowAndAoRenderMaterial.kernelSize
       );
     }
     return this._sampleKernel;
   }
 
-  constructor(_depthAndNormalTextures: GBufferTextures, parameters?: any) {
-    this.shadowAndAoParameters = this._getShadowAndAoParameters(parameters);
-    this._width = parameters?._width ?? 1024;
-    this._height = parameters?._height ?? 1024;
-    this._samples = parameters?._samples ?? 0;
-    this._depthAndNormalTextures = _depthAndNormalTextures;
-    this._renderPass = parameters?._renderPass ?? new RenderPass();
+  constructor(
+    depthAndNormalTextures: GBufferTextures,
+    parameters?: ShadowAndAoRenderTargetsParameters
+  ) {
+    this.shadowAndAoParameters = this._getShadowAndAoParameters(
+      parameters?.shAndAo
+    );
+    this._width = parameters?.width ?? 1024;
+    this._height = parameters?.height ?? 1024;
+    this._samples = parameters?.samples ?? 0;
+    this._depthAndNormalTextures = depthAndNormalTextures;
+    this._renderPass = parameters?.renderPass ?? new RenderPass();
   }
 
-  private _getShadowAndAoParameters(parameters?: any): ShadowAndAoParameters {
+  private _getShadowAndAoParameters(
+    parameters?: ShadowAndAoParameters
+  ): ShadowAndAoParameters {
     return {
       ...defaultShadowAndAoParameters,
       ...parameters,
@@ -594,12 +688,12 @@ export class ShadowAndAoRenderTargets {
     this._passRenderTarget?.dispose();
   }
 
-  public setSize(_width: number, _height: number) {
-    this._width = _width;
-    this._height = _height;
+  public setSize(width: number, height: number) {
+    this._width = width;
+    this._height = height;
     this._passRenderMaterial?.update({
-      _width: this._width,
-      _height: this._height,
+      width: this._width,
+      height: this._height,
     });
   }
 
@@ -613,24 +707,24 @@ export class ShadowAndAoRenderTargets {
   public render(
     renderer: WebGLRenderer,
     camera: Camera,
-    shadowMapTexture: Texture,
+    shadowMapTexture: Texture
   ): void {
     this._renderPass.renderScreenSpace(
       renderer,
       this.updateSSAOMaterial(camera, shadowMapTexture),
-      this.passRenderTarget,
+      this.passRenderTarget
     );
     this.parametersNeedsUpdate = false;
   }
 
   public updateSSAOMaterial(
     camera: Camera,
-    shadowTexture: Texture,
+    shadowTexture: Texture
   ): ShaderMaterial {
     const passRenderMaterial = this.passRenderMaterial;
     passRenderMaterial.updateDependencies({
-      _width: this._width,
-      _height: this._height,
+      width: this._width,
+      height: this._height,
       camera,
       shadowTexture,
       sceneBoxMin: this._sceneBoxMin,
@@ -689,7 +783,23 @@ const glslShadowAndAoFragmentShader = `uniform sampler2D tShadow;
   
   float getDepth(const in vec2 screenPosition) {
       #if FLOAT_GBUFFER_RGB_NORMAL_ALPHA_DEPTH == 1
-          return texture2D(tNormal, screenPosition).w;
+          #if DEPTH_BUFFER_ANTIALIAS == 1
+              vec2 size = vec2(textureSize(tNormal, 0));
+              ivec2 p = ivec2(screenPosition * size);
+              float d0 = texelFetch(tNormal, p, 0).w;
+              vec2 depth = vec2(d0, 1.0);
+              float d1 = texelFetch(tNormal, p + ivec2(1, 0), 0).w;
+              depth += vec2(d1, 1.0) * step(abs(d1 - d0), 0.1);
+              float d2 = texelFetch(tNormal, p - ivec2(1, 0), 0).w;
+              depth += vec2(d2, 1.0) * step(abs(d2 - d0), 0.1);
+              float d3 = texelFetch(tNormal, p + ivec2(0, 1), 0).w;
+              depth += vec2(d3, 1.0) * step(abs(d3 - d0), 0.1);
+              float d4 = texelFetch(tNormal, p - ivec2(0, 1), 0).w;
+              depth += vec2(d4, 1.0) * step(abs(d4 - d0), 0.1);
+              return depth.x / depth.y;
+          #else
+              return texture2D(tNormal, screenPosition).w;
+          #endif
       #else    
           return texture2D(tDepth, screenPosition).x;
       #endif
@@ -769,7 +879,7 @@ const glslShadowAndAoFragmentShader = `uniform sampler2D tShadow;
       vec3 worldPosition = (cameraWorldMatrix * vec4(viewPosition, 1.0)).xyz;
       float boxDistance = length(max(vec3(0.0), max(sceneBoxMin - worldPosition, worldPosition - sceneBoxMax)));
   
-      vec2 noiseScale = resolution.xy / 4.0;
+      vec2 noiseScale = resolution.xy / vec2(textureSize(tNoise, 0));
       vec3 random = texture2D(tNoise, vUv * noiseScale).xyz * 2.0 - 1.0;
   
       // compute matrix used to reorient a kernel vector
@@ -819,15 +929,37 @@ const glslShadowAndAoFragmentShader = `uniform sampler2D tShadow;
       gl_FragColor = vec4(aoOcclusion, shOcclusion, 0.0, 1.0);
   }`;
 
+export interface ShadowAndAoRenderMaterialParameters {
+  floatGBufferRgbNormalAlphaDepth?: boolean;
+  shadowTexture?: Texture;
+  normalTexture?: Texture;
+  depthTexture?: Texture;
+  noiseTexture?: Texture;
+  sampleKernel?: Vector3[];
+  camera?: Camera;
+  sceneBoxMin?: Vector3;
+  sceneBoxMax?: Vector3;
+  width?: number;
+  height?: number;
+  aoKernelRadius?: number;
+  aoDepthBias?: number;
+  aoMaxDistance?: number;
+  aoMaxDepth?: number;
+  aoIntensity?: number;
+  aoFadeout?: number;
+  shadowRadius?: number;
+  shadowIntensity?: number;
+}
+
 export class ShadowAndAoRenderMaterial extends ShaderMaterial {
   public static kernelSize: number = 32;
-  private static _shader: any = {
+  private static _shader = {
     uniforms: {
       tShadow: { value: null as Texture | null },
       tNormal: { value: null as Texture | null },
       tDepth: { value: null as Texture | null },
       tNoise: { value: null as Texture | null },
-      sampleKernel: { value: null },
+      sampleKernel: { value: null as Vector3[] | null },
       cameraNear: { value: 0.1 },
       cameraFar: { value: 1 },
       resolution: { value: new Vector2() },
@@ -850,12 +982,13 @@ export class ShadowAndAoRenderMaterial extends ShaderMaterial {
       KERNEL_SIZE: ShadowAndAoRenderMaterial.kernelSize,
       FLOAT_GBUFFER_RGB_NORMAL_ALPHA_DEPTH: 0,
       NORMAL_VECTOR_ANTIALIAS: 2,
+      DEPTH_BUFFER_ANTIALIAS: 1,
     },
     vertexShader: glslShadowAndAoVertexShader,
     fragmentShader: glslShadowAndAoFragmentShader,
   };
 
-  constructor(parameters?: any) {
+  constructor(parameters?: ShadowAndAoRenderMaterialParameters) {
     super({
       defines: Object.assign({
         ...ShadowAndAoRenderMaterial._shader.defines,
@@ -873,13 +1006,15 @@ export class ShadowAndAoRenderMaterial extends ShaderMaterial {
     this.update(parameters);
   }
 
-  public update(parameters?: any): ShadowAndAoRenderMaterial {
+  public update(
+    parameters?: ShadowAndAoRenderMaterialParameters
+  ): ShadowAndAoRenderMaterial {
     this.updateDependencies(parameters);
     this.updateSettings(parameters);
     return this;
   }
 
-  public updateDependencies(parameters?: any) {
+  public updateDependencies(parameters?: ShadowAndAoRenderMaterialParameters) {
     if (parameters?.shadowTexture !== undefined) {
       this.uniforms.tShadow.value = parameters?.shadowTexture;
     }
@@ -892,10 +1027,10 @@ export class ShadowAndAoRenderMaterial extends ShaderMaterial {
     if (parameters?.noiseTexture !== undefined) {
       this.uniforms.tNoise.value = parameters?.noiseTexture;
     }
-    if (parameters?._width || parameters?._height) {
-      const _width = parameters?._width ?? this.uniforms.resolution.value.x;
-      const _height = parameters?._height ?? this.uniforms.resolution.value.y;
-      this.uniforms.resolution.value.set(_width, _height);
+    if (parameters?.width || parameters?.height) {
+      const width = parameters?.width ?? this.uniforms.resolution.value.x;
+      const height = parameters?.height ?? this.uniforms.resolution.value.y;
+      this.uniforms.resolution.value.set(width, height);
     }
     if (parameters?.sampleKernel !== undefined) {
       this.uniforms.sampleKernel.value = parameters?.sampleKernel;
@@ -909,7 +1044,9 @@ export class ShadowAndAoRenderMaterial extends ShaderMaterial {
     this._updateCameraDependentUniforms(parameters);
   }
 
-  private _updateCameraDependentUniforms(parameters?: any) {
+  private _updateCameraDependentUniforms(
+    parameters?: ShadowAndAoRenderMaterialParameters
+  ) {
     if (parameters?.camera !== undefined) {
       const camera =
         (parameters?.camera as OrthographicCamera) ||
@@ -918,13 +1055,13 @@ export class ShadowAndAoRenderMaterial extends ShaderMaterial {
       this.uniforms.cameraFar.value = camera.far;
       this.uniforms.cameraProjectionMatrix.value.copy(camera.projectionMatrix);
       this.uniforms.cameraInverseProjectionMatrix.value.copy(
-        camera.projectionMatrixInverse,
+        camera.projectionMatrixInverse
       );
       this.uniforms.cameraWorldMatrix.value.copy(camera.matrixWorld);
     }
   }
 
-  public updateSettings(parameters?: any) {
+  public updateSettings(parameters?: ShadowAndAoRenderMaterialParameters) {
     if (parameters?.aoKernelRadius !== undefined) {
       this.uniforms.aoKernelRadius.value = parameters?.aoKernelRadius;
     }

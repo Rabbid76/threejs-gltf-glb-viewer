@@ -1,4 +1,4 @@
-/* eslint-disable complexity */
+import { EnvironmentSceneGenerator } from './environment-definition';
 import type { BufferGeometry } from 'three';
 import {
   AmbientLight,
@@ -9,7 +9,25 @@ import {
   Vector2,
 } from 'three';
 
-export class RoomEnvironmentScene extends Scene {
+export class DefaultEnvironmentSceneGenerator extends EnvironmentSceneGenerator {
+  public generateScene(intensity: number, rotation: number): Scene {
+    const defaultEnvironmentScene = new DefaultEnvironmentScene({
+      lightIntensity: intensity,
+    });
+    defaultEnvironmentScene.rotation.y = rotation;
+    return defaultEnvironmentScene;
+  }
+}
+
+export interface DefaultEnvironmentSceneParameters {
+  lightIntensity?: number;
+  topLightIntensity?: number;
+  sidLightIntensity?: number;
+  ambientLightIntensity?: number;
+  colorVariation?: number;
+}
+
+export class DefaultEnvironmentScene extends Scene {
   private _topLightIntensity: number;
   private _sideLightIntensity: number;
   private _sideReflectorIntensity: number;
@@ -17,9 +35,9 @@ export class RoomEnvironmentScene extends Scene {
   private _colorVariation: number;
   private _lightGeometry: BufferGeometry;
 
-  constructor(parameters?: any) {
+  constructor(parameters?: DefaultEnvironmentSceneParameters) {
     super();
-    this._topLightIntensity = 
+    this._topLightIntensity =
       parameters?.topLightIntensity || parameters?.lightIntensity || 1.0;
     this._sideLightIntensity =
       parameters?.sidLightIntensity || parameters?.lightIntensity || 1.0;
@@ -51,7 +69,7 @@ export class RoomEnvironmentScene extends Scene {
   }
 
   dispose() {
-    const resources: any = new Set();
+    const resources = new Set();
     this.traverse((object: any) => {
       if (object.isMesh) {
         resources.add(object.geometry);
@@ -70,7 +88,7 @@ export class RoomEnvironmentScene extends Scene {
   private _createTopLight(scene: Scene) {
     const topLight = new Mesh(
       this._lightGeometry,
-      this._createAreaLightMaterial(8 * this._topLightIntensity),
+      this._createAreaLightMaterial(6 * this._topLightIntensity)
     );
     topLight.position.set(0.0, 20.0, 0.0);
     topLight.scale.set(5.0, 0.1, 5.0);
@@ -79,14 +97,14 @@ export class RoomEnvironmentScene extends Scene {
 
   private _createSideLight(scene: Scene, direction: Vector2, index: number) {
     for (let j = 0; j < 3; j++) {
-      const li = 20 * this._sideLightIntensity;
+      const li = 15 * this._sideLightIntensity;
       const light = new Mesh(
         this._lightGeometry,
         this._createAreaLightMaterial(
           (j + index) % 3 === 0 ? li : li * (1.0 - this._colorVariation),
           (j + index) % 3 === 1 ? li : li * (1.0 - this._colorVariation),
-          (j + index) % 3 === 2 ? li : li * (1.0 - this._colorVariation),
-        ),
+          (j + index) % 3 === 2 ? li : li * (1.0 - this._colorVariation)
+        )
       );
       const xOffset =
         (j === 1 ? -direction.y : j === 2 ? direction.y : 0) / Math.sqrt(2);
@@ -96,7 +114,7 @@ export class RoomEnvironmentScene extends Scene {
       light.position.set(
         direction.x * 15.0 + xOffset * 1.2,
         5.0 + yOffset * 1.2,
-        direction.y * 15.0 + zOffset * 1.2,
+        direction.y * 15.0 + zOffset * 1.2
       );
       light.rotation.set(0, Math.atan2(direction.x, direction.y), 0);
       light.scale.set(1.1, 1.1, 1.1);
@@ -107,7 +125,7 @@ export class RoomEnvironmentScene extends Scene {
   private _createReflector(scene: Scene, direction: Vector2) {
     const light = new Mesh(
       this._lightGeometry,
-      this._createAreaLightMaterial(4 * this._sideReflectorIntensity),
+      this._createAreaLightMaterial(3 * this._sideReflectorIntensity)
     );
     light.position.set(direction.x * 15.0, 5.0, direction.y * 15.0);
     light.rotation.set(0, Math.atan2(direction.x, direction.y), 0);

@@ -15,21 +15,16 @@ export class EnvironmentPmremGenertor extends PMREMGenerator {
 
   public fromEquirectangularTexture(
     equirectangularTexture: Texture,
-    parameters?: any,
+    parameters?: { rotation?: number; intensity?: number }
   ): WebGLRenderTarget {
     const rotation = parameters?.rotation ?? 0;
     const intensity = parameters?.intensity ?? 1;
     this._extendedEquirectMaterial.uniforms.intensity.value = intensity;
+    // prettier-ignore
     this._extendedEquirectMaterial.uniforms.rotationMatrix.value.set(
-      Math.cos(rotation),
-      0,
-      -Math.sin(rotation),
-      0,
-      1,
-      0,
-      Math.sin(rotation),
-      0,
-      Math.cos(rotation),
+      Math.cos(rotation), 0, -Math.sin(rotation),
+      0, 1, 0,
+      Math.sin(rotation), 0, Math.cos(rotation)
     );
     return super.fromEquirectangular(equirectangularTexture);
   }

@@ -69,7 +69,7 @@ export const createUniformColorCubeTexture = (color: Color) => {
 export const createNoiseTexture = (
   size: number,
   min: number,
-  max: number,
+  max: number
 ): Texture => {
   const noiseTextureData = new Uint8Array(size * size * 4);
   for (let i = 0; i < noiseTextureData.length; ++i) {
@@ -83,7 +83,7 @@ export const createNoiseTexture = (
 export const loadAndSetTexture = (
   setTexture: (texture: Texture) => void,
   resource: string,
-  color?: Color,
+  color?: Color
 ): void => {
   if (color) {
     setTexture(createUniformColorTexture(color));
@@ -95,7 +95,7 @@ export const loadAndSetTexture = (
 
 export const setOrthographicViewVolumeFromBox = (
   camera: OrthographicCamera,
-  viewBox: Box3,
+  viewBox: Box3
 ): void => {
   camera.left = viewBox.min.x;
   camera.right = viewBox.max.x;
@@ -108,7 +108,7 @@ export const setOrthographicViewVolumeFromBox = (
 
 export const setPerspectiveViewVolumeFromBox = (
   camera: PerspectiveCamera,
-  viewBox: Box3,
+  viewBox: Box3
 ): void => {
   const near = Math.min(-viewBox.min.z, -viewBox.max.z);
   const far = Math.max(-viewBox.min.z, -viewBox.max.z);
@@ -155,7 +155,7 @@ export class SceneVolume {
     this.maxSceneDistanceFrom0 = new Vector3(
       Math.max(Math.abs(this.bounds.min.x), Math.abs(this.bounds.max.x)),
       Math.max(Math.abs(this.bounds.min.y), Math.abs(this.bounds.max.y)),
-      Math.max(Math.abs(this.bounds.min.z), Math.abs(this.bounds.max.z)),
+      Math.max(Math.abs(this.bounds.min.z), Math.abs(this.bounds.max.z))
     ).length();
   }
 
@@ -173,12 +173,12 @@ export class SceneVolume {
 
   public getNearAndFarForPerspectiveCamera(
     cameraPosition: Vector3,
-    backScale: number = 1,
+    backScale: number = 1
   ): number[] {
     const distanceFromCenter = cameraPosition.clone().sub(this.center).length();
     const near = Math.max(
       0.01,
-      distanceFromCenter - this.maxSceneDistanceFromCenter - 0.01,
+      distanceFromCenter - this.maxSceneDistanceFromCenter - 0.01
     );
     const far =
       distanceFromCenter + this.maxSceneDistanceFromCenter * backScale + 0.01;
@@ -194,7 +194,7 @@ export const getMaxSamples = (renderTarget: WebGLRenderer): number => {
 
 export class BoxUpdateHelper {
   public box: Box3;
-  public color: Color;
+  public color: ColorRepresentation;
   public opacity: number;
   private _group: Group;
   private _boxMesh: Mesh;
@@ -210,7 +210,7 @@ export class BoxUpdateHelper {
     return this._group;
   }
 
-  constructor(box: Box3, parameters?: any) {
+  constructor(box: Box3, parameters?: { color?: number; opacity?: number }) {
     this._group = new Group();
     this.box = box;
     this.color = parameters?.color ?? 0x808080;
@@ -225,7 +225,7 @@ export class BoxUpdateHelper {
         color: this.color,
         transparent: true,
         opacity: this.opacity,
-      }),
+      })
     );
     this._boxWire = new BoxHelper(this._boxMesh, this.color);
     this._boxWire.material = new LineBasicMaterial({ color: this.color });
@@ -259,17 +259,17 @@ export class BoxUpdateHelper {
 }
 
 export const boxFromOrthographicViewVolume = (
-  camera: OrthographicCamera,
+  camera: OrthographicCamera
 ): Box3 => {
   const min = new Vector3(
     Math.min(camera.left, camera.right),
     Math.min(camera.bottom, camera.top),
-    Math.min(camera.near, camera.far),
+    Math.min(camera.near, camera.far)
   );
   const max = new Vector3(
     Math.max(camera.left, camera.right),
     Math.max(camera.bottom, camera.top),
-    Math.max(camera.near, camera.far),
+    Math.max(camera.near, camera.far)
   );
   const box = new Box3(min, max);
   return box;
@@ -277,50 +277,50 @@ export const boxFromOrthographicViewVolume = (
 
 export const boundingBoxInViewSpace = (
   worldBox: Box3,
-  camera: Camera,
+  camera: Camera
 ): Box3 => {
   camera.updateMatrixWorld();
   const viewMatrix = camera.matrixWorldInverse;
   const viewBox = new Box3();
   viewBox.expandByPoint(
     new Vector3(worldBox.min.x, worldBox.min.y, worldBox.min.z).applyMatrix4(
-      viewMatrix,
-    ),
+      viewMatrix
+    )
   );
   viewBox.expandByPoint(
     new Vector3(worldBox.min.x, worldBox.min.y, worldBox.max.z).applyMatrix4(
-      viewMatrix,
-    ),
+      viewMatrix
+    )
   );
   viewBox.expandByPoint(
     new Vector3(worldBox.min.x, worldBox.max.y, worldBox.min.z).applyMatrix4(
-      viewMatrix,
-    ),
+      viewMatrix
+    )
   );
   viewBox.expandByPoint(
     new Vector3(worldBox.min.x, worldBox.max.y, worldBox.max.z).applyMatrix4(
-      viewMatrix,
-    ),
+      viewMatrix
+    )
   );
   viewBox.expandByPoint(
     new Vector3(worldBox.max.x, worldBox.min.y, worldBox.min.z).applyMatrix4(
-      viewMatrix,
-    ),
+      viewMatrix
+    )
   );
   viewBox.expandByPoint(
     new Vector3(worldBox.max.x, worldBox.min.y, worldBox.max.z).applyMatrix4(
-      viewMatrix,
-    ),
+      viewMatrix
+    )
   );
   viewBox.expandByPoint(
     new Vector3(worldBox.max.x, worldBox.max.y, worldBox.min.z).applyMatrix4(
-      viewMatrix,
-    ),
+      viewMatrix
+    )
   );
   viewBox.expandByPoint(
     new Vector3(worldBox.max.x, worldBox.max.y, worldBox.max.z).applyMatrix4(
-      viewMatrix,
-    ),
+      viewMatrix
+    )
   );
   return viewBox;
 };
@@ -342,24 +342,24 @@ export class CameraUpdate {
 export const viewSpacePositionFromAltitudeAndAzimuth = (
   distance: number,
   altitudeDeg: number,
-  azimuthDeg: number,
+  azimuthDeg: number
 ): Vector3 => {
   return new Vector3().setFromSphericalCoords(
     distance,
     MathUtils.degToRad(90 - altitudeDeg),
-    MathUtils.degToRad(180 - azimuthDeg),
+    MathUtils.degToRad(180 - azimuthDeg)
   );
 };
 
 export const viewSpacePositionFromUV = (
   distance: number,
   u: number,
-  v: number,
+  v: number
 ): Vector3 => {
   return new Vector3().setFromSphericalCoords(
     distance,
     Math.PI * (1 - v),
-    Math.PI * 2 * (1 - u),
+    Math.PI * 2 * (1 - u)
   );
 };
 
@@ -394,7 +394,7 @@ export const generateUniformKernelRotations = (): DataTexture => {
     const randomVec = new Vector3(
       Math.cos(angle),
       Math.sin(angle),
-      0,
+      0
     ).normalize();
     data[inx * 4] = (randomVec.x * 0.5 + 0.5) * 255;
     data[inx * 4 + 1] = (randomVec.y * 0.5 + 0.5) * 255;
@@ -402,6 +402,66 @@ export const generateUniformKernelRotations = (): DataTexture => {
     data[inx * 4 + 3] = 0;
   }
   const noiseTexture = new DataTexture(data, width, height);
+  noiseTexture.wrapS = RepeatWrapping;
+  noiseTexture.wrapT = RepeatWrapping;
+  noiseTexture.needsUpdate = true;
+  return noiseTexture;
+};
+
+export const generateMagicSquare = (size: number): number[] => {
+  const noiseSize =
+    Math.floor(size) % 2 === 0 ? Math.floor(size) + 1 : Math.floor(size);
+  const noiseSquareSize = noiseSize * noiseSize;
+  const magicSquare = Array(noiseSquareSize).fill(0);
+  let i = Math.floor(noiseSize / 2);
+  let j = noiseSize - 1;
+  for (let num = 1; num <= noiseSquareSize; ) {
+    if (i === -1 && j === noiseSize) {
+      j = noiseSize - 2;
+      i = 0;
+    } else {
+      if (j === noiseSize) {
+        j = 0;
+      }
+      if (i < 0) {
+        i = noiseSize - 1;
+      }
+    }
+    if (magicSquare[i * noiseSize + j] !== 0) {
+      j -= 2;
+      i++;
+      continue;
+    } else {
+      magicSquare[i * noiseSize + j] = num++;
+    }
+    j++;
+    i--;
+  }
+  return magicSquare;
+};
+
+export const generateMagicSquareDistributedKernelRotations = (
+  size: number
+): DataTexture => {
+  const noiseSize =
+    Math.floor(size) % 2 === 0 ? Math.floor(size) + 1 : Math.floor(size);
+  const magicSquare = generateMagicSquare(noiseSize);
+  const noiseSquareSize = magicSquare.length;
+  const data = new Uint8Array(noiseSquareSize * 4);
+  for (let inx = 0; inx < noiseSquareSize; ++inx) {
+    const iAng = magicSquare[inx];
+    const angle = (2 * Math.PI * iAng) / noiseSquareSize;
+    const randomVec = new Vector3(
+      Math.cos(angle),
+      Math.sin(angle),
+      0
+    ).normalize();
+    data[inx * 4] = (randomVec.x * 0.5 + 0.5) * 255;
+    data[inx * 4 + 1] = (randomVec.y * 0.5 + 0.5) * 255;
+    data[inx * 4 + 2] = 127;
+    data[inx * 4 + 3] = 0;
+  }
+  const noiseTexture = new DataTexture(data, noiseSize, noiseSize);
   noiseTexture.wrapS = RepeatWrapping;
   noiseTexture.wrapT = RepeatWrapping;
   noiseTexture.needsUpdate = true;
@@ -424,7 +484,7 @@ export class RenderPass {
     overrideMaterial: Material | null,
     renderTarget: WebGLRenderTarget | null,
     clearColor?: ColorRepresentation,
-    clearAlpha?: number,
+    clearAlpha?: number
   ): void {
     this._backup(renderer);
     this._prepareRenderer(renderer, renderTarget, clearColor, clearAlpha);
@@ -438,8 +498,8 @@ export class RenderPass {
   public clear(
     renderer: WebGLRenderer,
     renderTarget: WebGLRenderTarget | null,
-    clearColor?: any,
-    clearAlpha?: any,
+    clearColor?: ColorRepresentation,
+    clearAlpha?: number
   ): void {
     this._backup(renderer);
     this._prepareRenderer(renderer, renderTarget, clearColor, clearAlpha);
@@ -452,8 +512,8 @@ export class RenderPass {
     scene: Scene,
     camera: Camera,
     renderTarget: WebGLRenderTarget | null,
-    clearColor?: any,
-    clearAlpha?: any,
+    clearColor?: ColorRepresentation,
+    clearAlpha?: number
   ): void {
     this._backup(renderer);
     this._prepareRenderer(renderer, renderTarget, clearColor, clearAlpha);
@@ -465,8 +525,8 @@ export class RenderPass {
     renderer: WebGLRenderer,
     passMaterial: Material,
     renderTarget: WebGLRenderTarget | null,
-    clearColor?: any,
-    clearAlpha?: any,
+    clearColor?: ColorRepresentation,
+    clearAlpha?: number
   ): void {
     this._backup(renderer);
     this._prepareRenderer(renderer, renderTarget, clearColor, clearAlpha);
@@ -478,8 +538,8 @@ export class RenderPass {
   private _prepareRenderer(
     renderer: WebGLRenderer,
     renderTarget: WebGLRenderTarget | null,
-    clearColor?: any,
-    clearAlpha?: any,
+    clearColor?: ColorRepresentation,
+    clearAlpha?: number
   ): void {
     renderer.setRenderTarget(renderTarget);
     renderer.autoClear = false;
@@ -511,9 +571,9 @@ export class BlurPass {
 
   constructor(
     blurShaderParameters?: ShaderMaterialParameters,
-    parameters?: any,
+    parameters?: { renderPass?: RenderPass }
   ) {
-    this._renderPass = parameters?._renderPass ?? new RenderPass();
+    this._renderPass = parameters?.renderPass ?? new RenderPass();
     this._blurMaterial = new ShaderMaterial(blurShaderParameters ?? BlurShader);
     this._blurMaterial.depthTest = false;
   }
@@ -526,7 +586,7 @@ export class BlurPass {
     renderer: WebGLRenderer,
     renderTargets: WebGLRenderTarget[],
     uvMin: number[],
-    uvMax: number[],
+    uvMax: number[]
   ) {
     this._blurMaterial.uniforms.tDiffuse.value = renderTargets[0].texture;
     this._blurMaterial.uniforms.rangeMin.value.x = uvMin[0];
@@ -536,7 +596,7 @@ export class BlurPass {
     this._renderPass.renderScreenSpace(
       renderer,
       this._blurMaterial,
-      renderTargets[1],
+      renderTargets[1]
     );
     this._blurMaterial.uniforms.tDiffuse.value = renderTargets[1].texture;
     this._blurMaterial.uniforms.rangeMin.value.x = 0;
@@ -546,7 +606,7 @@ export class BlurPass {
     this._renderPass.renderScreenSpace(
       renderer,
       this._blurMaterial,
-      renderTargets[2],
+      renderTargets[2]
     );
   }
 }

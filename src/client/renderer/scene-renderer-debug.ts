@@ -1,8 +1,8 @@
 import { RenderPass } from './render-utility';
+import type { CopyTransformMaterialParameters } from './shader-utility';
 import {
   ALPHA_RGBA,
   ALPHA_TRANSFORM,
-  BLUE_TRANSFORM,
   CopyTransformMaterial,
   DEFAULT_TRANSFORM,
   DEFAULT_UV_TRANSFORM,
@@ -20,7 +20,6 @@ import type { BakedGroundContactShadow } from './baked-ground-contact-shadow';
 import type { ScreenSpaceShadowMap } from './screen-space-shadow-map';
 import { ShadowAndAoPass } from './shadow-and-ao-pass';
 import type { GroundReflectionPass } from './ground-reflection-pass';
-import type { ScreenSpaceReflection } from './screen-space-reflection';
 import { EnvironmentMapDecodeMaterial } from './light-source-detection';
 import type {
   Camera,
@@ -43,7 +42,7 @@ import {
 type RenderFunction = (
   renderer: WebGLRenderer,
   scene: Scene,
-  camera: Camera,
+  camera: Camera
 ) => void;
 
 export class DebugPass {
@@ -62,7 +61,7 @@ export class DebugPass {
     this._sceneRenderer = sceneRenderer;
     this._environmentMapDecodeMaterial = new EnvironmentMapDecodeMaterial(
       true,
-      false,
+      false
     );
     this._environmentMapDecodeMaterial.blending = NoBlending;
     this._environmentMapDecodeMaterial.depthTest = false;
@@ -84,10 +83,6 @@ export class DebugPass {
     return this._sceneRenderer.groundReflectionPass;
   }
 
-  private get _screenSpaceReflection(): ScreenSpaceReflection {
-    return this._sceneRenderer.screenSpaceReflection;
-  }
-
   private get _bakedGroundContactShadow(): BakedGroundContactShadow {
     return this._sceneRenderer.bakedGroundContactShadow;
   }
@@ -98,7 +93,9 @@ export class DebugPass {
     this.grayMaterial.dispose();
   }
 
-  protected getCopyMaterial(parameters?: any): ShaderMaterial {
+  protected getCopyMaterial(
+    parameters?: CopyTransformMaterialParameters
+  ): ShaderMaterial {
     this._copyMaterial = this._copyMaterial ?? new CopyTransformMaterial();
     return this._copyMaterial.update(parameters);
   }
@@ -123,7 +120,7 @@ export class DebugPass {
     renderer: WebGLRenderer,
     scene: Scene,
     camera: Camera,
-    debugOutput: string,
+    debugOutput: string
   ): void {
     preRenderPasses(renderer, scene, camera);
     if (debugOutput === 'color') {
@@ -139,7 +136,7 @@ export class DebugPass {
           this.grayMaterial as Material,
           null,
           0,
-          1,
+          1
         );
       });
     } else {
@@ -154,7 +151,7 @@ export class DebugPass {
     renderer: WebGLRenderer,
     scene: Scene,
     camera: Camera,
-    debugOutput: string,
+    debugOutput: string
   ): void {
     switch (debugOutput) {
       default:
@@ -163,7 +160,7 @@ export class DebugPass {
         this._renderPass.renderScreenSpace(
           renderer,
           this._getDepthRenderMaterial(camera),
-          null,
+          null
         );
         break;
       case 'g-normal':
@@ -173,33 +170,18 @@ export class DebugPass {
             this.getCopyMaterial({
               texture: this._gBufferRenderTarget?.gBufferTexture,
               blending: NoBlending,
+              // prettier-ignore
               colorTransform: new Matrix4().set(
-                // eslint-disable-next-line prettier/prettier
-                0.5,
-                0,
-                0,
-                0,
-                // eslint-disable-next-line prettier/prettier
-                0,
-                0.5,
-                0,
-                0,
-                // eslint-disable-next-line prettier/prettier
-                0,
-                0,
-                0.5,
-                0,
-                // eslint-disable-next-line prettier/prettier
-                0,
-                0,
-                0,
-                0,
+                  0.5, 0, 0, 0,
+                  0, 0.5, 0, 0,
+                  0, 0, 0.5, 0,
+                  0, 0, 0, 0,
               ),
               colorBase: new Vector4(0.5, 0.5, 0.5, 1),
               multiplyChannels: 0,
               uvTransform: DEFAULT_UV_TRANSFORM,
             }),
-            null,
+            null
           );
         } else {
           this._renderPass.renderScreenSpace(
@@ -212,7 +194,7 @@ export class DebugPass {
               multiplyChannels: 0,
               uvTransform: DEFAULT_UV_TRANSFORM,
             }),
-            null,
+            null
           );
         }
         break;
@@ -228,7 +210,7 @@ export class DebugPass {
               multiplyChannels: 0,
               uvTransform: DEFAULT_UV_TRANSFORM,
             }),
-            null,
+            null
           );
         } else {
           this._renderPass.renderScreenSpace(
@@ -241,7 +223,7 @@ export class DebugPass {
               multiplyChannels: 0,
               uvTransform: DEFAULT_UV_TRANSFORM,
             }),
-            null,
+            null
           );
         }
         break;
@@ -258,7 +240,7 @@ export class DebugPass {
             multiplyChannels: 0,
             uvTransform: DEFAULT_UV_TRANSFORM,
           }),
-          null,
+          null
         );
         break;
       case 'ssaodenoise':
@@ -272,7 +254,7 @@ export class DebugPass {
             multiplyChannels: 0,
             uvTransform: DEFAULT_UV_TRANSFORM,
           }),
-          null,
+          null
         );
         break;
       case 'shadowmap':
@@ -281,26 +263,12 @@ export class DebugPass {
           this.getCopyMaterial({
             texture: this._screenSpaceShadow.shadowTexture,
             blending: NoBlending,
-            colorTransform: RED_TRANSFORM,
+            colorTransform: GRAYSCALE_TRANSFORM,
             colorBase: ZERO_RGBA,
             multiplyChannels: 0,
             uvTransform: DEFAULT_UV_TRANSFORM,
           }),
-          null,
-        );
-        break;
-      case 'reflectivitymap':
-        this._renderPass.renderScreenSpace(
-          renderer,
-          this.getCopyMaterial({
-            texture: this._screenSpaceShadow.shadowTexture,
-            blending: NoBlending,
-            colorTransform: BLUE_TRANSFORM,
-            colorBase: ZERO_RGBA,
-            multiplyChannels: 0,
-            uvTransform: DEFAULT_UV_TRANSFORM,
-          }),
-          null,
+          null
         );
         break;
       case 'shadow':
@@ -316,7 +284,7 @@ export class DebugPass {
             multiplyChannels: 0,
             uvTransform: DEFAULT_UV_TRANSFORM,
           }),
-          null,
+          null
         );
         break;
       case 'shadowblur':
@@ -330,7 +298,7 @@ export class DebugPass {
             multiplyChannels: 0,
             uvTransform: DEFAULT_UV_TRANSFORM,
           }),
-          null,
+          null
         );
         break;
       case 'shadowfadein':
@@ -344,7 +312,7 @@ export class DebugPass {
             multiplyChannels: 0,
             uvTransform: DEFAULT_UV_TRANSFORM,
           }),
-          null,
+          null
         );
         break;
       case 'shadowandao':
@@ -357,13 +325,13 @@ export class DebugPass {
               this._shadowAndAoPass.parameters.aoIntensity,
               this._shadowAndAoPass.parameters.shadowIntensity,
               0,
-              1,
+              1
             ),
             colorBase: ZERO_RGBA,
             multiplyChannels: 1,
             uvTransform: DEFAULT_UV_TRANSFORM,
           }),
-          null,
+          null
         );
         break;
       case 'groundreflection':
@@ -377,21 +345,7 @@ export class DebugPass {
             multiplyChannels: 0,
             uvTransform: FLIP_Y_UV_TRANSFORM,
           }),
-          null,
-        );
-        break;
-      case 'screenspacereflection':
-        this._renderPass.renderScreenSpace(
-          renderer,
-          this.getCopyMaterial({
-            texture: this._screenSpaceReflection.texture,
-            blending: NoBlending,
-            colorTransform: DEFAULT_TRANSFORM,
-            colorBase: ZERO_RGBA,
-            multiplyChannels: 0,
-            uvTransform: DEFAULT_UV_TRANSFORM,
-          }),
-          null,
+          null
         );
         break;
       case 'bakedgroundshadow':
@@ -405,17 +359,17 @@ export class DebugPass {
             multiplyChannels: 0,
             uvTransform: DEFAULT_UV_TRANSFORM,
           }),
-          null,
+          null
         );
         break;
       case 'environmentmap':
         this._environmentMapDecodeMaterial.setSourceTexture(
-          scene.environment as Texture,
+          scene.environment as Texture
         );
         this._renderPass.renderScreenSpace(
           renderer,
           this._environmentMapDecodeMaterial,
-          null,
+          null
         );
         break;
       case 'lightsourcedetection':
@@ -427,12 +381,12 @@ export class DebugPass {
             1 / aspect,
             -1 / aspect,
             -1,
-            1,
+            1
           );
           const environmentScene =
             scene.userData?.environmentDefinition.createDebugScene(
               renderer,
-              scene,
+              scene
             );
           environmentScene.background = new Color(0xffffff);
           renderer.render(environmentScene, environmentCamera);

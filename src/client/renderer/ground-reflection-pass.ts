@@ -51,6 +51,21 @@ export interface GroundReflectionParameters {
   renderTargetDownScale: number;
 }
 
+export interface GroundReflectionConstructorParameters {
+  renderPass?: RenderPass;
+  enabled?: boolean;
+  intensity?: number;
+  fadeOutDistance?: number;
+  fadeOutExponent?: number;
+  brightness?: number;
+  blurHorizontal?: number;
+  blurVertical?: number;
+  blurAscent?: number;
+  groundLevel?: number;
+  groundReflectionScale?: number;
+  renderTargetDownScale?: number;
+}
+
 export class GroundReflectionPass {
   private _width: number;
   private _height: number;
@@ -81,7 +96,11 @@ export class GroundReflectionPass {
     return this._blurRenderTarget;
   }
 
-  constructor(width: number, height: number, parameters: any) {
+  constructor(
+    width: number,
+    height: number,
+    parameters: GroundReflectionConstructorParameters
+  ) {
     this._width = width;
     this._height = height;
     this.parameters = {
@@ -101,11 +120,11 @@ export class GroundReflectionPass {
     this._copyMaterial = new CopyTransformMaterial({});
     this._updateCopyMaterial(null);
     this._reflectionIntensityMaterial = new GroundReflectionIntensityMaterial({
-      _width: this._width / this.parameters.renderTargetDownScale,
-      _height: this._height / this.parameters.renderTargetDownScale,
+      width: this._width / this.parameters.renderTargetDownScale,
+      height: this._height / this.parameters.renderTargetDownScale,
     });
     this._blurPass = new BlurPass(BlurShader, parameters);
-    this._renderPass = parameters?._renderPass ?? new RenderPass();
+    this._renderPass = parameters?.renderPass ?? new RenderPass();
   }
 
   private _newRenderTarget(createDepthTexture: boolean): WebGLRenderTarget {
@@ -140,23 +159,23 @@ export class GroundReflectionPass {
     this._height = height;
     this._reflectionRenderTarget?.setSize(
       this._width / this.parameters.renderTargetDownScale,
-      this._height / this.parameters.renderTargetDownScale,
+      this._height / this.parameters.renderTargetDownScale
     );
     this._intensityRenderTarget?.setSize(
       this._width / this.parameters.renderTargetDownScale,
-      this._height / this.parameters.renderTargetDownScale,
+      this._height / this.parameters.renderTargetDownScale
     );
     this._blurRenderTarget?.setSize(
       this._width / this.parameters.renderTargetDownScale,
-      this._height / this.parameters.renderTargetDownScale,
+      this._height / this.parameters.renderTargetDownScale
     );
     this._reflectionIntensityMaterial?.update({
-      _width: this._width / this.parameters.renderTargetDownScale,
-      _height: this._height / this.parameters.renderTargetDownScale,
+      width: this._width / this.parameters.renderTargetDownScale,
+      height: this._height / this.parameters.renderTargetDownScale,
     });
   }
 
-  public updateParameters(parameters: any) {
+  public updateParameters(parameters: GroundReflectionParameters) {
     for (let propertyName in parameters) {
       if (this.parameters.hasOwnProperty(propertyName)) {
         this.parameters[propertyName] = parameters[propertyName];
@@ -171,33 +190,18 @@ export class GroundReflectionPass {
 
   private _updateCopyMaterial(
     renderTarget: WebGLRenderTarget | null,
-    reflectionFadeInScale: number = 1,
+    reflectionFadeInScale: number = 1
   ) {
     const intensity = this.parameters.intensity * reflectionFadeInScale;
     const brightness = this.parameters.brightness;
     this._copyMaterial.update({
       texture: renderTarget?.texture ?? undefined,
+      // prettier-ignore
       colorTransform: new Matrix4().set(
-        // eslint-disable-next-line prettier/prettier
-        brightness,
-        0,
-        0,
-        0,
-        // eslint-disable-next-line prettier/prettier
-        0,
-        brightness,
-        0,
-        0,
-        // eslint-disable-next-line prettier/prettier
-        0,
-        0,
-        brightness,
-        0,
-        // eslint-disable-next-line prettier/prettier
-        0,
-        0,
-        0,
-        intensity,
+        brightness, 0, 0, 0,
+        0, brightness, 0, 0,
+        0, 0, brightness, 0,
+        0, 0, 0, intensity
       ),
       multiplyChannels: 0,
       uvTransform: FLIP_Y_UV_TRANSFORM,
@@ -210,7 +214,7 @@ export class GroundReflectionPass {
     renderer: WebGLRenderer,
     scene: Scene,
     camera: Camera,
-    reflectionFadeInScale: number = 1,
+    reflectionFadeInScale: number = 1
   ): void {
     if (!this.parameters.enabled || !(camera instanceof PerspectiveCamera)) {
       return;
@@ -220,12 +224,12 @@ export class GroundReflectionPass {
       renderer,
       scene,
       groundReflectionCamera,
-      this.reflectionRenderTarget,
+      this.reflectionRenderTarget
     );
     this._renderGroundReflectionIntensity(
       renderer,
       groundReflectionCamera,
-      this.intensityRenderTarget,
+      this.intensityRenderTarget
     );
     if (
       this.parameters.blurHorizontal > 0 ||
@@ -241,7 +245,7 @@ export class GroundReflectionPass {
     this._renderPass.renderScreenSpace(
       renderer,
       this._copyMaterial,
-      renderer.getRenderTarget(),
+      renderer.getRenderTarget()
     );
   }
 
@@ -249,7 +253,7 @@ export class GroundReflectionPass {
     renderer: WebGLRenderer,
     scene: Scene,
     groundReflectionCamera: Camera,
-    renderTarget: WebGLRenderTarget | undefined,
+    renderTarget: WebGLRenderTarget | undefined
   ) {
     const renderTargetBackup = renderer.getRenderTarget();
     if (renderTarget) {
@@ -264,7 +268,7 @@ export class GroundReflectionPass {
   private _renderGroundReflectionIntensity(
     renderer: WebGLRenderer,
     groundReflectionCamera: Camera,
-    renderTarget: WebGLRenderTarget,
+    renderTarget: WebGLRenderTarget
   ) {
     const renderTargetBackup = renderer.getRenderTarget();
     renderer.setRenderTarget(renderTarget);
@@ -280,7 +284,7 @@ export class GroundReflectionPass {
           this.parameters.groundReflectionScale,
         fadeOutExponent: this.parameters.fadeOutExponent,
       }),
-      renderer.getRenderTarget(),
+      renderer.getRenderTarget()
     );
     renderer.setRenderTarget(renderTargetBackup);
   }
@@ -288,12 +292,12 @@ export class GroundReflectionPass {
   public blurReflection(
     renderer: WebGLRenderer,
     camera: Camera,
-    renderTargets: WebGLRenderTarget[],
+    renderTargets: WebGLRenderTarget[]
   ): void {
     const cameraUpVector = new Vector3(
       camera.matrixWorld.elements[4],
       camera.matrixWorld.elements[5],
-      camera.matrixWorld.elements[6],
+      camera.matrixWorld.elements[6]
     );
     const blurHorMin = this.parameters.blurHorizontal / this._width;
     const blurVerMin =
@@ -306,7 +310,7 @@ export class GroundReflectionPass {
       [
         blurHorMin * 4 * (1 + this.parameters.blurAscent),
         blurVerMin * 4 * (1 + this.parameters.blurAscent),
-      ],
+      ]
     );
   }
 
@@ -324,13 +328,13 @@ export class GroundReflectionPass {
     groundReflectionCamera.position.set(
       camera.position.x,
       -camera.position.y + 2 * this.parameters.groundLevel,
-      camera.position.z,
+      camera.position.z
     );
     //groundReflectionCamera.lookAt(0, 2 * groundLevel, 0);
     groundReflectionCamera.rotation.set(
       -camera.rotation.x,
       camera.rotation.y,
-      -camera.rotation.z,
+      -camera.rotation.z
     );
     //groundReflectionCamera.scale.set(1, -1, 1);
     groundReflectionCamera.updateMatrixWorld();
@@ -407,8 +411,19 @@ const glslGroundReflectionIntensityFragmentShader = `
     gl_FragColor = fragColor * step(depth, 0.9999);
   }`;
 
+export interface GroundReflectionIntensityMaterialParameters {
+  texture?: Texture;
+  depthTexture?: Texture;
+  camera?: Camera;
+  groundLevel?: number;
+  fadeOutDistance?: number;
+  fadeOutExponent?: number;
+  width?: number;
+  height?: number;
+}
+
 export class GroundReflectionIntensityMaterial extends ShaderMaterial {
-  private static shader: any = {
+  private static shader = {
     uniforms: {
       tDiffuse: { value: null as Texture | null },
       tDepth: { value: null as Texture | null },
@@ -430,14 +445,14 @@ export class GroundReflectionIntensityMaterial extends ShaderMaterial {
     fragmentShader: glslGroundReflectionIntensityFragmentShader,
   };
 
-  constructor(parameters?: any) {
+  constructor(parameters?: GroundReflectionIntensityMaterialParameters) {
     super({
       defines: Object.assign(
         {},
-        GroundReflectionIntensityMaterial.shader.defines,
+        GroundReflectionIntensityMaterial.shader.defines
       ),
       uniforms: UniformsUtils.clone(
-        GroundReflectionIntensityMaterial.shader.uniforms,
+        GroundReflectionIntensityMaterial.shader.uniforms
       ),
       vertexShader: GroundReflectionIntensityMaterial.shader.vertexShader,
       fragmentShader: GroundReflectionIntensityMaterial.shader.fragmentShader,
@@ -446,16 +461,18 @@ export class GroundReflectionIntensityMaterial extends ShaderMaterial {
     this.update(parameters);
   }
 
-  public update(parameters?: any): GroundReflectionIntensityMaterial {
+  public update(
+    parameters?: GroundReflectionIntensityMaterialParameters
+  ): GroundReflectionIntensityMaterial {
     if (parameters?.texture !== undefined) {
       this.uniforms.tDiffuse.value = parameters?.texture;
     }
     if (parameters?.depthTexture !== undefined) {
       this.uniforms.tDepth.value = parameters?.depthTexture;
     }
-    if (parameters?._width || parameters?._height) {
-      const _width = parameters?._width ?? this.uniforms.resolution.value.x;
-      const _height = parameters?._height ?? this.uniforms.resolution.value.y;
+    if (parameters?.width || parameters?.height) {
+      const _width = parameters?.width ?? this.uniforms.resolution.value.x;
+      const _height = parameters?.height ?? this.uniforms.resolution.value.y;
       this.uniforms.resolution.value.set(_width, _height);
     }
     if (parameters?.camera !== undefined) {
@@ -466,7 +483,7 @@ export class GroundReflectionIntensityMaterial extends ShaderMaterial {
       this.uniforms.cameraFar.value = camera.far;
       this.uniforms.cameraProjectionMatrix.value.copy(camera.projectionMatrix);
       this.uniforms.cameraInverseProjectionMatrix.value.copy(
-        camera.projectionMatrixInverse,
+        camera.projectionMatrixInverse
       );
       this.uniforms.inverseViewMatrix.value.copy(camera.matrixWorld);
     }

@@ -1,4 +1,9 @@
-import type { OrthographicCamera, PerspectiveCamera, Texture } from 'three';
+import type {
+  Blending,
+  OrthographicCamera,
+  PerspectiveCamera,
+  Texture,
+} from 'three';
 import {
   AddEquation,
   DstAlphaFactor,
@@ -12,55 +17,6 @@ import {
   Vector4,
   ZeroFactor,
 } from 'three';
-
-const CopySRGBShader = {
-  uniforms: {
-    tDiffuse: { value: null as Texture | null },
-  },
-  vertexShader: `
-        varying vec2 vUv;
-        
-        void main() {
-            vUv = uv;
-            gl_Position = (projectionMatrix * modelViewMatrix * vec4(position, 1.0)).xyww;
-        }`,
-  fragmentShader: `
-        uniform sampler2D tDiffuse;
-        varying vec2 vUv;
-
-        vec3 linearToSrgb(vec3 c) {
-          return mix(  c * 12.92, 1.055 * ( pow( c, vec3(0.41666) ) ) - 0.055, step(0.0031308, c) );
-        }
-  
-        void main() {
-            vec4 color = texture2D(tDiffuse, vUv);
-            gl_FragColor = vec4(linearToSrgb(color.rgb), color.a);
-        }`,
-};
-
-export class CopyLinearSrgbMaterial extends ShaderMaterial {
-  constructor(parameters?: Record<string, any>) {
-    super({
-      uniforms: UniformsUtils.clone(CopySRGBShader.uniforms),
-      vertexShader: CopySRGBShader.vertexShader,
-      fragmentShader: CopySRGBShader.fragmentShader,
-      transparent: true,
-      depthTest: false,
-      depthWrite: false,
-    });
-    this.update(parameters);
-  }
-
-  public update(parameters?: Record<string, any>): CopyTransformMaterial {
-    if (parameters?.texture !== undefined) {
-      this.uniforms.tDiffuse.value = parameters?.texture;
-    }
-    if (parameters?.blending !== undefined) {
-      this.blending = parameters?.blending;
-    }
-    return this;
-  }
-}
 
 const CopyTransformShader = {
   uniforms: {
@@ -161,10 +117,25 @@ export enum CopyMaterialBlendMode {
   ADDITIVE,
 }
 
+export interface CopyTransformMaterialParameters {
+  texture?: Texture | null;
+  colorTransform?: Matrix4;
+  colorBase?: Vector4;
+  multiplyChannels?: number;
+  uvTransform?: Matrix3;
+  blending?: Blending;
+  blendSrc?: any;
+  blendDst?: any;
+  blendEquation?: any;
+  blendSrcAlpha?: number;
+  blendDstAlpha?: number;
+  blendEquationAlpha?: number;
+}
+
 export class CopyTransformMaterial extends ShaderMaterial {
   constructor(
-    parameters?: Record<string, any>,
-    copyBlendMode: CopyMaterialBlendMode = CopyMaterialBlendMode.ADDITIVE,
+    parameters?: CopyTransformMaterialParameters,
+    copyBlendMode: CopyMaterialBlendMode = CopyMaterialBlendMode.ADDITIVE
   ) {
     const blendingParameters =
       copyBlendMode === CopyMaterialBlendMode.ADDITIVE
@@ -189,7 +160,9 @@ export class CopyTransformMaterial extends ShaderMaterial {
     this.update(parameters);
   }
 
-  public update(parameters?: Record<string, any>): CopyTransformMaterial {
+  public update(
+    parameters?: CopyTransformMaterialParameters
+  ): CopyTransformMaterial {
     if (parameters?.texture !== undefined) {
       this.uniforms.tDiffuse.value = parameters?.texture;
     }
@@ -425,10 +398,10 @@ export class LinearDepthRenderMaterial extends ShaderMaterial {
     super({
       defines: Object.assign(
         {},
-        LinearDepthRenderMaterial._linearDepthShader.defines,
+        LinearDepthRenderMaterial._linearDepthShader.defines
       ),
       uniforms: UniformsUtils.clone(
-        LinearDepthRenderMaterial._linearDepthShader.uniforms,
+        LinearDepthRenderMaterial._linearDepthShader.uniforms
       ),
       vertexShader: LinearDepthRenderMaterial._linearDepthShader.vertexShader,
       fragmentShader:

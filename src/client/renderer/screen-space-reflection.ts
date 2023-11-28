@@ -78,11 +78,10 @@ export class ScreenSpaceReflection {
     this._gBufferRenderTarget =
       this._gBufferRenderTarget ??
       new GBufferRenderTargets(undefined, {
-        _width: this._width,
-        _height: this._height,
-        _samples: this._samples,
-        _renderPass: this._renderPass,
-        textureFilter: NearestFilter,
+        width: this._width,
+        height: this._height,
+        samples: this._samples,
+        renderPass: this._renderPass,
       });
     return this._gBufferRenderTarget;
   }

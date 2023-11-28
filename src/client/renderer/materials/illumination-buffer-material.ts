@@ -11,11 +11,9 @@ export class IlluminationBufferMaterial extends MeshLambertMaterial {
   private static _sceneBoxMin: Vector3 = new Vector3(-1, -1, -1);
   private static _sceneBoxMax: Vector3 = new Vector3(1, 1, 1);
   private static _distributionProperties: Vector4 = new Vector4(1, 1, 1, 0);
-  private _reflectivityAttribute: number = 0;
 
   constructor(parameters?: any) {
     super(parameters);
-    this._reflectivityAttribute = parameters.reflectivityAttribute || 0;
     this.onBeforeCompile = this._onBeforeCompile;
   }
 
@@ -24,13 +22,13 @@ export class IlluminationBufferMaterial extends MeshLambertMaterial {
     directionalExponent: number,
     groundContainment: number,
     distance: number,
-    blur: number,
+    blur: number
   ) {
     IlluminationBufferMaterial._distributionProperties.set(
       directionalDependency,
       directionalExponent,
       groundContainment,
-      0,
+      0
     );
     IlluminationBufferMaterial._shadowFadeOut.set(distance, blur);
   }
@@ -52,7 +50,6 @@ export class IlluminationBufferMaterial extends MeshLambertMaterial {
       uniforms.distributionProperties = {
         value: IlluminationBufferMaterial._distributionProperties,
       };
-      uniforms.reflectivityAttribute = { value: this._reflectivityAttribute };
       uniforms.shadowFadeOut = {
         value: IlluminationBufferMaterial._shadowFadeOut,
       };
@@ -117,7 +114,6 @@ varying vec3 vWorldPosition;
   uniform vec3 sceneBoxMax;
 #endif
 uniform vec4 distributionProperties;
-uniform float reflectivityAttribute;
 
 #include <common>
 #include <packing>
@@ -256,7 +252,6 @@ void main() {
 
 	vec3 outgoingLight = mix(accumulatedShadowLight, directionDependentShadowLight, max(distributionProperties.x, 1.0 - groundDistance));
   outgoingLight = dynamicScale.x + directionDependentShadowLight.y * outgoingLight;
-  outgoingLight.y = reflectivityAttribute;
 
 	#include <opaque_fragment>
 	#include <premultiplied_alpha_fragment>

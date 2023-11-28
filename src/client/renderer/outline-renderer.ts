@@ -2,7 +2,13 @@ import type { GBufferRenderTargets } from './gbuffer-render-target';
 //import { OutlinePass } from 'three/examples/jsm/postprocessing/OutlinePass.js';
 import { OutlinePass } from './outline-pass';
 import type { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer';
-import type { Camera, Object3D, PerspectiveCamera, Scene } from 'three';
+import type {
+  Camera,
+  ColorRepresentation,
+  Object3D,
+  PerspectiveCamera,
+  Scene,
+} from 'three';
 import { Vector2 } from 'three';
 
 export interface OutlineParameters {
@@ -13,8 +19,20 @@ export interface OutlineParameters {
   edgeThickness: number;
   pulsePeriod: number;
   usePatternTexture: false;
-  visibleEdgeColor: any;
-  hiddenEdgeColor: any;
+  visibleEdgeColor: ColorRepresentation;
+  hiddenEdgeColor: ColorRepresentation;
+}
+
+export interface OutlineRendererParameters {
+  gBufferRenderTarget?: GBufferRenderTargets;
+  enabled?: boolean;
+  edgeStrength?: number;
+  edgeGlow?: number;
+  edgeThickness?: number;
+  pulsePeriod?: number;
+  usePatternTexture?: false;
+  visibleEdgeColor?: ColorRepresentation;
+  hiddenEdgeColor?: ColorRepresentation;
 }
 
 export class OutLineRenderer {
@@ -34,10 +52,10 @@ export class OutLineRenderer {
     _effectComposer: EffectComposer | null,
     width: number,
     height: number,
-    parameters: any,
+    parameters: OutlineRendererParameters
   ) {
     this._effectComposer = _effectComposer;
-    this._gBufferRenderTarget = parameters?._gBufferRenderTarget;
+    this._gBufferRenderTarget = parameters?.gBufferRenderTarget;
     this._width = width;
     this._height = height;
     this.parameters = {
@@ -63,7 +81,7 @@ export class OutLineRenderer {
     this.outlinePass?.setSize(width, height);
   }
 
-  public updateParameters(parameters: any): void {
+  public updateParameters(parameters: OutlineParameters): void {
     for (let propertyName in parameters) {
       if (this.parameters.hasOwnProperty(propertyName)) {
         this.parameters[propertyName] = parameters[propertyName];
@@ -110,8 +128,8 @@ export class OutLineRenderer {
         {
           downSampleRatio: 2,
           edgeDetectionFxaa: true,
-          _gBufferRenderTarget: this._gBufferRenderTarget,
-        },
+          gBufferRenderTarget: this._gBufferRenderTarget,
+        }
       );
     }
     this.applyParameters();
@@ -134,7 +152,7 @@ export class OutLineRenderer {
   public updateOutline(
     scene: Scene,
     camera: Camera,
-    selectedObjects: Object3D[],
+    selectedObjects: Object3D[]
   ) {
     if (selectedObjects.length > 0) {
       this.activateOutline(scene, camera);

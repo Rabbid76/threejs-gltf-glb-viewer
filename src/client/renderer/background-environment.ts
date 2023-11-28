@@ -41,11 +41,11 @@ export class BackgroundEnvironment {
     const geometry = new BufferGeometry();
     geometry.setAttribute(
       'position',
-      new Float32BufferAttribute([-1, 3, 0, -1, -1, 0, 3, -1, 0], 3),
+      new Float32BufferAttribute([-1, 3, 0, -1, -1, 0, 3, -1, 0], 3)
     );
     geometry.setAttribute(
       'uv',
-      new Float32BufferAttribute([0, 2, 0, 0, 2, 0], 2),
+      new Float32BufferAttribute([0, 2, 0, 0, 2, 0], 2)
     );
     this.backgroundMesh = new Mesh(geometry);
     this.backgroundMesh.name = 'Background';
@@ -78,10 +78,10 @@ export class BackgroundEnvironment {
     }
     if (this.backgroundMaterial) {
       this.backgroundMaterial.uniforms.viewMatrixInverse.value.copy(
-        camera.matrixWorld,
+        camera.matrixWorld
       );
       this.backgroundMaterial.uniforms.projectionMatrixInverse.value.copy(
-        camera.projectionMatrixInverse,
+        camera.projectionMatrixInverse
       );
       this.backgroundMaterial.uniforms.iResolution.value.set(width, height);
     }
@@ -173,7 +173,7 @@ export class BackgroundEnvironmentGUI {
 
   public addGUI(
     gui: GUI,
-    updateCallback?: (_backgroundEnvironment: BackgroundEnvironment) => void,
+    updateCallback?: (_backgroundEnvironment: BackgroundEnvironment) => void
   ): void {
     const properties: any = {
       backgroundType: '',

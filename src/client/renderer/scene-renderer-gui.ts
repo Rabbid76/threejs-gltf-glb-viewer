@@ -30,19 +30,12 @@ export class SceneRendererGUI {
     this._addShadowAndAoGUI(shadowAndAoFolder, updateCallback);
     const groundReflectionFolder = gui.addFolder('Ground Reflection');
     this._addGroundReflectionGUI(groundReflectionFolder, updateCallback);
-    const screenSpaceReflectionFolder = gui.addFolder(
-      'Screen Space Reflection',
-    );
-    this._addScreenSpaceReflectionGUI(
-      screenSpaceReflectionFolder,
-      updateCallback,
-    );
     const bakedGroundContactShadowFolder = gui.addFolder(
-      'Baked Ground Contact Shadow',
+      'Baked Ground Contact Shadow'
     );
     this._addBakedGroundContactShadowGUI(
       bakedGroundContactShadowFolder,
-      updateCallback,
+      updateCallback
     );
     const outlineFolder = gui.addFolder('Outline');
     this._addOutlineGUI(outlineFolder, updateCallback);
@@ -108,7 +101,7 @@ export class SceneRendererGUI {
       .onChange((qualityLevel: string) => {
         if (qualityLevels.has(qualityLevel)) {
           this._sceneRenderer.setQualityLevel(
-            qualityLevels.get(qualityLevel) ?? QualityLevel.HIGHEST,
+            qualityLevels.get(qualityLevel) ?? QualityLevel.HIGHEST
           );
         }
       });
@@ -123,13 +116,11 @@ export class SceneRendererGUI {
         'AO pure': 'ssao',
         'AO denoised': 'ssaodenoise',
         'shadow map': 'shadowmap',
-        'reflectivity map': 'reflectivitymap',
         'shadow Monte Carlo': 'shadow',
         'shadow blur': 'shadowblur',
         'shadow fade in': 'shadowfadein',
         'shadow and AO': 'shadowandao',
         'ground reflection': 'groundreflection',
-        'screen space reflection': 'screenspacereflection',
         'baked ground shadow': 'bakedgroundshadow',
         'selection outline': 'outline',
         'environment map': 'environmentmap',
@@ -173,7 +164,7 @@ export class SceneRendererGUI {
         'bias',
         -0.001,
         0.001,
-        0.00001,
+        0.00001
       )
       .onChange(() => updateShadow());
     const shadowNormalBiasController = gui
@@ -181,7 +172,7 @@ export class SceneRendererGUI {
         shadowConfiguration.currentConfiguration,
         'normalBias',
         -0.05,
-        0.05,
+        0.05
       )
       .onChange(() => updateShadow());
     const shadowRadiusController = gui
@@ -229,16 +220,19 @@ export class SceneRendererGUI {
     });
     gui.add<any>(parameters, 'aoOnGround').onChange(() => {
       updateParameters();
-      this._sceneRenderer.updateCache();
+      this._sceneRenderer.clearCache();
     });
     gui.add<any>(parameters, 'shadowOnGround').onChange(() => {
       updateParameters();
-      this._sceneRenderer.updateCache();
+      this._sceneRenderer.clearCache();
     });
     gui
       .add<any>(parameters, 'shadowIntensity', 0, 1)
       .onChange(() => updateParameters());
     gui.add<any>(parameters, 'alwaysUpdate').onChange(() => updateParameters());
+    gui
+      .add<any>(parameters, 'progressiveDenoiseIterations', 0, 3, 1)
+      .onChange(() => updateParameters());
 
     const shFolder = gui.addFolder('Shadow and Monte Carlo integration');
     shFolder
@@ -298,7 +292,10 @@ export class SceneRendererGUI {
       .add<any>(denoiseParameters, 'iterations', 0, 3, 1)
       .onChange(() => updateParameters());
     denoiseFolder
-      .add<any>(denoiseParameters, 'radius', 0, 32, 1)
+      .add<any>(denoiseParameters, 'radius', 0, 50, 1)
+      .onChange(() => updateParameters());
+    denoiseFolder
+      .add<any>(denoiseParameters, 'radiusExponent', 0.1, 4, 0.01)
       .onChange(() => updateParameters());
     denoiseFolder
       .add<any>(denoiseParameters, 'rings', 0, 16, 0.125)
@@ -341,27 +338,9 @@ export class SceneRendererGUI {
       .onChange(() => updateCallback());
   }
 
-  private _addScreenSpaceReflectionGUI(
-    gui: GUI,
-    updateCallback: () => void,
-  ): void {
-    const parameters =
-      this._sceneRenderer.parameters.screenSpaceReflectionParameters;
-    gui.add<any>(parameters, 'enabled');
-    gui
-      .add<any>(parameters, 'opacity', 0.0, 1.0)
-      .onChange(() => updateCallback());
-    gui
-      .add<any>(parameters, 'maxDistance', 0.0, 2.0)
-      .onChange(() => updateCallback());
-    gui
-      .add<any>(parameters, 'thickness', 0.001, 0.2, 0.001)
-      .onChange(() => updateCallback());
-  }
-
   private _addBakedGroundContactShadowGUI(
     gui: GUI,
-    updateCallback: () => void,
+    updateCallback: () => void
   ): void {
     const updateParameters = (): void => {
       this._sceneRenderer.bakedGroundContactShadow.applyParameters();
