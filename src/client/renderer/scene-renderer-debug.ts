@@ -386,7 +386,9 @@ export class DebugPass {
           const environmentScene =
             scene.userData?.environmentDefinition.createDebugScene(
               renderer,
-              scene
+              scene,
+              this._sceneRenderer.screenSpaceShadow.parameters
+                .maximumNumberOfLightSources
             );
           environmentScene.background = new Color(0xffffff);
           renderer.render(environmentScene, environmentCamera);

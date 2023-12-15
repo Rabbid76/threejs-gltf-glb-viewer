@@ -1,6 +1,6 @@
 import type { SceneRenderer } from './scene-renderer';
 import { QualityLevel } from './scene-renderer';
-import { AmbientOcclusionType } from './shadow-and-ao-pass';
+import { AoAlgorithms } from './pass/ao-pass';
 import {
   ACESFilmicToneMapping,
   CineonToneMapping,
@@ -190,31 +190,26 @@ export class SceneRendererGUI {
       updateCallback();
     };
     const parameters = this._sceneRenderer.shadowAndAoPass.parameters;
-    const ahAndAoParameters = parameters.shAndAo;
+    const shadowParameters = parameters.shadow;
     const shadowMapParameters =
       this._sceneRenderer.screenSpaceShadow.parameters;
-    const hbaoParameters = parameters.hbao;
+    const aoParameters = parameters.ao;
     const denoiseParameters = parameters.poissonDenoise;
     gui.add<any>(parameters, 'enabled').onChange(() => updateParameters());
     const aoTypes = new Map([
-      ['none', AmbientOcclusionType.NONE],
-      ['SSAO', AmbientOcclusionType.SSAO],
-      ['HBAO', AmbientOcclusionType.HBAO],
+      ['none', null],
+      ['SSAO', AoAlgorithms.SSAO],
+      ['SAO', AoAlgorithms.SAO],
+      ['N8AO', AoAlgorithms.N8AO],
+      ['HBAO', AoAlgorithms.HBAO],
+      ['GTAO', AoAlgorithms.GTAO],
     ]);
     const aoNames: string[] = Array.from(aoTypes.keys());
     aoTypes.forEach((value, key) => {
-      if (value === parameters.aoType) {
+      if (value === aoParameters.algorithm) {
         this._ambientOcclusionType = key;
       }
     });
-    gui
-      .add<any>(this, '_ambientOcclusionType', aoNames)
-      .onChange((aoType: string) => {
-        if (aoTypes.has(aoType)) {
-          parameters.aoType = aoTypes.get(aoType) ?? AmbientOcclusionType.SSAO;
-          updateParameters();
-        }
-      });
     gui.add<any>(parameters, 'aoIntensity', 0, 1).onChange(() => {
       updateParameters();
     });
@@ -236,7 +231,10 @@ export class SceneRendererGUI {
 
     const shFolder = gui.addFolder('Shadow and Monte Carlo integration');
     shFolder
-      .add<any>(shadowMapParameters, 'maximumNumberOfLightSources')
+      .add<any>(shadowMapParameters, 'maximumNumberOfLightSources', -1, 10, 1)
+      .onChange(() => updateParameters());
+    shFolder
+      .add<any>(shadowMapParameters, 'enableGroundBoundary')
       .onChange(() => updateParameters());
     shFolder
       .add<any>(shadowMapParameters, 'directionalDependency', 0.0, 1.0, 0.01)
@@ -245,63 +243,69 @@ export class SceneRendererGUI {
       .add<any>(shadowMapParameters, 'directionalExponent', 0.0, 2.0, 0.01)
       .onChange(() => updateParameters());
     shFolder
-      .add<any>(shadowMapParameters, 'groundContainment', 0.0, 1.0, 0.01)
+      .add<any>(shadowMapParameters, 'groundBoundary', 0.0, 1.0, 0.01)
       .onChange(() => updateParameters());
     shFolder
       .add<any>(shadowMapParameters, 'fadeOutDistance', 0.0, 5.0, 0.01)
       .onChange(() => updateParameters());
     shFolder
-      .add<any>(shadowMapParameters, 'fadeOutBlur', 0.0, 100.0)
+      .add<any>(shadowMapParameters, 'fadeOutBlur', 0.0, 20.0, 1.0)
       .onChange(() => updateParameters());
     shFolder
-      .add<any>(ahAndAoParameters, 'shadowRadius', 0.001, 0.5)
-      .onChange(() => updateParameters());
-    const aoFolder = gui.addFolder('SSAO');
-    aoFolder
-      .add<any>(ahAndAoParameters, 'aoFadeout', 0, 1)
-      .onChange(() => updateParameters());
-    aoFolder
-      .add<any>(ahAndAoParameters, 'aoKernelRadius', 0.001, 1)
-      .onChange(() => updateParameters());
-    aoFolder
-      .add<any>(ahAndAoParameters, 'aoDepthBias', 0.0001, 0.01)
-      .onChange(() => updateParameters());
-    aoFolder
-      .add<any>(ahAndAoParameters, 'aoMaxDistance', 0.01, 1)
-      .onChange(() => updateParameters());
-    aoFolder
-      .add<any>(ahAndAoParameters, 'aoMaxDepth', 0.9, 1)
+      .add<any>(shadowParameters, 'shadowRadius', 0.001, 0.5)
       .onChange(() => updateParameters());
 
-    const hbaoFolder = gui.addFolder('HBAO');
-    hbaoFolder
-      .add<any>(hbaoParameters, 'samples', 1, 64, 1)
+    const aoFolder = gui.addFolder('AO');
+    aoFolder
+      .add<any>(this, '_ambientOcclusionType', aoNames)
+      .onChange((aoType: string) => {
+        if (aoTypes.has(aoType)) {
+          const type = aoTypes.get(aoType);
+          aoParameters.algorithm =
+            type !== undefined ? type : AoAlgorithms.SSAO;
+          updateParameters();
+        }
+      });
+    aoFolder
+      .add<any>(aoParameters, 'samples', 1, 64, 1)
       .onChange(() => updateParameters());
-    hbaoFolder
-      .add<any>(hbaoParameters, 'radius', 0.1, 10, 0.01)
+    aoFolder
+      .add<any>(aoParameters, 'radius', 0.01, 2, 0.01)
       .onChange(() => updateParameters());
-    hbaoFolder
-      .add<any>(hbaoParameters, 'distanceExponent', 0.1, 5, 0.1)
+    aoFolder
+      .add<any>(aoParameters, 'distanceExponent', 0.1, 4, 0.1)
       .onChange(() => updateParameters());
-    hbaoFolder
-      .add<any>(hbaoParameters, 'bias', 0.001, 0.1, 0.001)
+    aoFolder
+      .add<any>(aoParameters, 'thickness', 0.01, 2, 0.01)
+      .onChange(() => updateParameters());
+    aoFolder
+      .add<any>(aoParameters, 'distanceFallOff', 0, 1)
+      .onChange(() => updateParameters());
+    aoFolder
+      .add<any>(aoParameters, 'scale', 0.01, 2, 0.01)
+      .onChange(() => updateParameters());
+    aoFolder
+      .add<any>(aoParameters, 'bias', 0.0001, 0.01, 0.0001)
+      .onChange(() => updateParameters());
+    aoFolder
+      .add<any>(aoParameters, 'screenSpaceRadius')
       .onChange(() => updateParameters());
 
     const denoiseFolder = gui.addFolder('Possion Denoise');
     denoiseFolder
-      .add<any>(denoiseParameters, 'iterations', 0, 3, 1)
+      .add<any>(denoiseParameters, 'iterations', 0, 4, 1)
       .onChange(() => updateParameters());
     denoiseFolder
-      .add<any>(denoiseParameters, 'radius', 0, 50, 1)
-      .onChange(() => updateParameters());
-    denoiseFolder
-      .add<any>(denoiseParameters, 'radiusExponent', 0.1, 4, 0.01)
+      .add<any>(denoiseParameters, 'samples', 0, 32, 1)
       .onChange(() => updateParameters());
     denoiseFolder
       .add<any>(denoiseParameters, 'rings', 0, 16, 0.125)
       .onChange(() => updateParameters());
     denoiseFolder
-      .add<any>(denoiseParameters, 'samples', 0, 32, 1)
+      .add<any>(denoiseParameters, 'radiusExponent', 0.1, 4, 0.01)
+      .onChange(() => updateParameters());
+    denoiseFolder
+      .add<any>(denoiseParameters, 'radius', 0, 50, 1)
       .onChange(() => updateParameters());
     denoiseFolder
       .add<any>(denoiseParameters, 'lumaPhi', 0, 20, 0.001)

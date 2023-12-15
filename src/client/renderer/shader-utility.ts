@@ -1,5 +1,8 @@
 import type {
   Blending,
+  BlendingDstFactor,
+  BlendingEquation,
+  BlendingSrcFactor,
   OrthographicCamera,
   PerspectiveCamera,
   Texture,
@@ -124,9 +127,9 @@ export interface CopyTransformMaterialParameters {
   multiplyChannels?: number;
   uvTransform?: Matrix3;
   blending?: Blending;
-  blendSrc?: any;
-  blendDst?: any;
-  blendEquation?: any;
+  blendSrc?: BlendingSrcFactor | BlendingDstFactor;
+  blendDst?: BlendingDstFactor;
+  blendEquation?: BlendingEquation;
   blendSrcAlpha?: number;
   blendDstAlpha?: number;
   blendEquationAlpha?: number;

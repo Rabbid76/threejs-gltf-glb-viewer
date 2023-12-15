@@ -40,10 +40,10 @@ import { Color, Group, Vector2 } from 'three';
 export { BakedGroundContactShadowParameters } from './baked-ground-contact-shadow';
 export { OutlineParameters } from './outline-renderer';
 export {
-  AmbientOcclusionType,
-  ShadowAndAoParameters,
+  ShadowParameters,
   ShadowAndAoPassParameters,
 } from './shadow-and-ao-pass';
+export { AORenderPassParameters } from './pass/ao-pass';
 export { GroundReflectionParameters } from './ground-reflection-pass';
 
 interface WithUserData {

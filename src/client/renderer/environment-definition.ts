@@ -150,8 +150,16 @@ export class EnvironmentDefinition {
     return lightSourceDetector;
   }
 
-  public createDebugScene(renderer: WebGLRenderer, scene: Scene): Scene | null {
-    if (this._debugScene) {
+  public createDebugScene(
+    renderer: WebGLRenderer,
+    scene: Scene,
+    maxNoOfLightSources?: number
+  ): Scene | null {
+    const maxLightSources = maxNoOfLightSources ?? -1;
+    if (
+      this._debugScene &&
+      maxLightSources === this._debugScene.userData.maximumNumberOfLightSources
+    ) {
       return this._debugScene;
     }
     this._debugScene = new Scene();
@@ -165,7 +173,11 @@ export class EnvironmentDefinition {
     const lightSourceDetectorDebug = new LightSourceDetectorDebug(
       lightSourceDetector
     );
-    lightSourceDetectorDebug.createDebugScene(this._debugScene);
+    lightSourceDetectorDebug.createDebugScene(
+      this._debugScene,
+      maxLightSources
+    );
+    this._debugScene.userData.maximumNumberOfLightSources = maxLightSources;
     return this._debugScene;
   }
 }

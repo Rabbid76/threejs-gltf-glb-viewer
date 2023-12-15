@@ -13,8 +13,6 @@ import { CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 // @ts-ignore
 import Stats from 'three/examples/jsm/libs/stats.module' 
 import { GUI } from 'dat.gui'
-// @ts-ignore
-import { download_file } from './util/download_file.js'
 
 const getDeviceType = () => {
     const ua = navigator.userAgent;
@@ -257,9 +255,12 @@ setupDragDrop('holder', 'hover', (file: File, event: ProgressEvent<FileReader>) 
     loadResource(file.name, event.target.result);
 });
 
+const saveDocumentLink = document.createElement('a');
 const saveSceneToFile = (fileName: string) => {
-    const imgData = renderer.domElement.toDataURL();      
-    download_file(imgData, fileName, undefined);
+  const imgData = renderer.domElement.toDataURL();
+  saveDocumentLink.href = imgData;
+  saveDocumentLink.download = fileName;
+  saveDocumentLink.click();
 };
 const renderAndSaveToFile = (renderMode: string, fileName: string) => {
     const renderModeBackup = renderScene.sceneRenderer.debugOutput;

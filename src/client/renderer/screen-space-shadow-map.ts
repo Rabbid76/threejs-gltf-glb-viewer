@@ -12,7 +12,6 @@ import type {
   Light,
   Material,
   Object3D,
-  OrthographicCamera,
   PerspectiveCamera,
   RectAreaLight,
   Scene,
@@ -21,6 +20,7 @@ import type {
   WebGLRenderer,
   Mesh,
 } from 'three';
+import { OrthographicCamera } from 'three';
 import {
   BasicShadowMap,
   DirectionalLight,
@@ -49,12 +49,13 @@ export interface ScreenSpaceShadowMapParameters {
   [key: string]: any;
   alwaysUpdate: boolean;
   enableShadowMap: boolean;
+  enableGroundBoundary: boolean;
   layers: Layers | null;
   shadowLightSourceType: ShadowLightSourceType;
   maximumNumberOfLightSources: number;
   directionalDependency: number;
   directionalExponent: number;
-  groundContainment: number;
+  groundBoundary: number;
   fadeOutDistance: number;
   fadeOutBlur: number;
 }
@@ -63,19 +64,21 @@ export const defaultScreenSpaceShadowMapParameters: ScreenSpaceShadowMapParamete
   {
     alwaysUpdate: false,
     enableShadowMap: true,
+    enableGroundBoundary: true,
     layers: null,
     shadowLightSourceType: ShadowLightSourceType.DirectionalLightShadow,
     maximumNumberOfLightSources: -1,
     directionalDependency: 1.0,
     directionalExponent: 1.0,
-    groundContainment: 1.0,
+    groundBoundary: 1.0,
     fadeOutDistance: 0.1,
-    fadeOutBlur: 20.0,
+    fadeOutBlur: 5.0,
   };
 
 interface ActiveShadowLight {
   light: Light;
   intensity: number;
+  groundShadow: boolean;
 }
 
 export interface ShadowLightSource {
@@ -106,7 +109,7 @@ export interface ScreenSpaceShadowMapConstructorParameters {
   maximumNumberOfLightSources?: number;
   directionalDependency?: number;
   directionalExponent?: number;
-  groundContainment?: number;
+  groundBoundary?: number;
   fadeOutDistance?: number;
   fadeOutBlur?: number;
 }
@@ -122,6 +125,7 @@ export class ScreenSpaceShadowMap {
   private _viewportSize: Vector2;
   private _samples: number;
   private _shadowScale: number = 1;
+  private _groundMapScale: number = 1;
   private _shadowMapSize: number;
   public castShadow: boolean;
   private _shadowRenderTarget: WebGLRenderTarget;
@@ -191,6 +195,18 @@ export class ScreenSpaceShadowMap {
       this.shadowTypeNeedsUpdate = true;
     }
     this._shadowLightSources.forEach((item) => item.updateBounds(sceneBounds));
+    if (this._shadowLightSources.length > 0) {
+      const shadowCamera =
+        this._shadowLightSources[0].getShadowLight().shadow?.camera;
+      if (shadowCamera instanceof OrthographicCamera) {
+        this._groundMapScale =
+          (2 * this._shadowMapSize) /
+          (Math.abs(shadowCamera.right - shadowCamera.left) +
+            Math.abs(shadowCamera.top - shadowCamera.bottom));
+      }
+    } else {
+      this._groundMapScale = 1;
+    }
     this._shadowMapPassOverrideMaterialCache.setBoundingBox(sceneBounds.bounds);
   }
 
@@ -289,6 +305,13 @@ export class ScreenSpaceShadowMap {
   ): void {
     const lightIntensityThreshold = 0.1;
     const lightDistanceScale = 7;
+    const groundShadowLight = new GroundShadowLightSource(
+      new Vector3(0, lightDistanceScale, 0),
+      {
+        shadowMapSize: this._shadowMapSize,
+      }
+    );
+    this._shadowLightSources.push(groundShadowLight);
     lightSources.forEach((lightSource) => {
       const lightIntensity = lightSource.maxIntensity * lightIntensityScale;
       if (
@@ -364,9 +387,11 @@ export class ScreenSpaceShadowMap {
     camera: Camera
   ) {
     this._shadowMapPassOverrideMaterialCache.setShadowParameters(
+      this.parameters.enableGroundBoundary,
       this.parameters.directionalDependency,
       this.parameters.directionalExponent,
-      this.parameters.groundContainment,
+      this.parameters.groundBoundary,
+      this._groundMapScale,
       this.parameters.fadeOutDistance * this._shadowScale,
       this.parameters.fadeOutBlur
     );
@@ -395,10 +420,16 @@ export class ScreenSpaceShadowMap {
       activeShadowLights.push(...item.prepareRenderShadow())
     );
     activeShadowLights.sort((a, b) => {
-      if (a.light.castShadow && !b.light.castShadow) {
+      if (
+        (a.light.castShadow && !b.light.castShadow) ||
+        (a.groundShadow && !b.groundShadow)
+      ) {
         return -1;
       }
-      if (!a.light.castShadow && b.light.castShadow) {
+      if (
+        (!a.light.castShadow && b.light.castShadow) ||
+        (!a.groundShadow && b.groundShadow)
+      ) {
         return 1;
       }
       return b.intensity - a.intensity;
@@ -410,31 +441,43 @@ export class ScreenSpaceShadowMap {
     activeShadowLights: ActiveShadowLight[]
   ) {
     let sumOfShadowLightIntensity = 0;
-    for (let i = 0; i < activeShadowLights.length; i++) {
-      const shadowLight = activeShadowLights[i];
+    let maximumNumberOfLightSources =
+      this.parameters.maximumNumberOfLightSources;
+    let noOfLights = 0;
+    activeShadowLights.forEach((shadowLight) => {
       if (
-        this.parameters.maximumNumberOfLightSources < 0 ||
-        i < this.parameters.maximumNumberOfLightSources
+        maximumNumberOfLightSources < 0 ||
+        noOfLights < maximumNumberOfLightSources
       ) {
-        sumOfShadowLightIntensity += shadowLight.intensity;
+        sumOfShadowLightIntensity += shadowLight.groundShadow
+          ? 0
+          : shadowLight.intensity;
+        if (!shadowLight.groundShadow) {
+          noOfLights++;
+        }
       }
-    }
-    for (let i = 0; i < activeShadowLights.length; i++) {
-      const shadowLight = activeShadowLights[i];
+    });
+    noOfLights = 0;
+    activeShadowLights.forEach((shadowLight) => {
       if (
-        this.parameters.maximumNumberOfLightSources < 0 ||
-        i < this.parameters.maximumNumberOfLightSources
+        (this.parameters.enableGroundBoundary || !shadowLight.groundShadow) &&
+        (maximumNumberOfLightSources < 0 ||
+          noOfLights < maximumNumberOfLightSources)
       ) {
         shadowLight.light.visible = true;
-        shadowLight.light.intensity =
-          shadowLight.intensity / sumOfShadowLightIntensity;
+        shadowLight.light.intensity = shadowLight.groundShadow
+          ? shadowLight.intensity
+          : shadowLight.intensity / sumOfShadowLightIntensity;
         shadowLight.light.castShadow &&= this.castShadow;
       } else {
         shadowLight.light.visible = false;
         shadowLight.light.intensity = 0;
         shadowLight.light.castShadow = false;
       }
-    }
+      if (!shadowLight.groundShadow) {
+        noOfLights++;
+      }
+    });
   }
 
   private _updateShadowType(renderer: WebGLRenderer): void {
@@ -507,16 +550,20 @@ export class ShadowMapPassOverrideMaterialCache extends ObjectRenderCache {
   }
 
   public setShadowParameters(
+    enableGroundBoundary: boolean,
     directionalDependency: number,
     directionalExponent: number,
-    groundContainment: number,
+    groundBoundary: number,
+    groundMapScale: number,
     distance: number,
     blur: number
   ) {
     IlluminationBufferMaterial.setShadowParameters(
+      enableGroundBoundary,
       directionalDependency,
       directionalExponent,
-      groundContainment,
+      groundBoundary,
+      groundMapScale,
       distance,
       blur
     );
@@ -939,6 +986,7 @@ export class RectAreaShadowLightSource extends BaseShadowLightSource {
       {
         light: this._shadowLightSource,
         intensity: this._rectAreaLight.intensity,
+        groundShadow: false,
       },
     ];
   }
@@ -985,6 +1033,45 @@ export class EnvironmentShadowLightSource extends BaseShadowLightSource {
       {
         light: this._shadowLightSource,
         intensity: this._intensity,
+        groundShadow: false,
+      },
+    ];
+  }
+
+  public finishRenderShadow(): void {
+    this._shadowLightSource.castShadow = this._castShadowBackup;
+    this._shadowLightSource.visible = false;
+  }
+}
+
+export class GroundShadowLightSource extends BaseShadowLightSource {
+  private _position: Vector3;
+
+  constructor(
+    position: Vector3,
+    parameters: EnvironmentShadowLightSourceParameters
+  ) {
+    const directionalLight = new DirectionalLight(0xffffff, 1);
+    directionalLight.position.copy(position);
+    directionalLight.lookAt(0, 0, 0);
+    directionalLight.updateMatrix();
+    directionalLight.castShadow = true;
+    super(directionalLight, parameters);
+    this._position = position.clone();
+  }
+
+  getPosition(): Vector3 {
+    return this._position;
+  }
+
+  public prepareRenderShadow(): ActiveShadowLight[] {
+    this._castShadowBackup = this._shadowLightSource.castShadow;
+    this._shadowLightSource.visible = true;
+    return [
+      {
+        light: this._shadowLightSource,
+        intensity: 1,
+        groundShadow: true,
       },
     ];
   }

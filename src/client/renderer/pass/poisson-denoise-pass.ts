@@ -21,29 +21,28 @@ import {
 export interface PoissonDenoisePassParameters {
   [key: string]: any;
   iterations: number;
-  radius: number;
-  radiusExponent: number;
+  samples: number;
   rings: number;
+  radiusExponent: number;
+  radius: number;
   lumaPhi: number;
   depthPhi: number;
   normalPhi: number;
-  samples: number;
 }
 
 export const defaultPoissonDenoisePassParameters: PoissonDenoisePassParameters =
   {
-    iterations: 1,
-    radius: 10,
+    iterations: 2,
+    samples: 16,
+    rings: 2,
     radiusExponent: 1,
-    rings: 4,
+    radius: 5,
     lumaPhi: 10,
-    depthPhi: 10,
+    depthPhi: 2,
     normalPhi: 4,
-    samples: 12,
   };
 
 export interface PoissonDenoiseParameters {
-  [key: string]: any;
   poissonDenoisePassParameters?: PoissonDenoisePassParameters;
   normalVectorSourceType?: NormalVectorSourceType;
   depthValueSourceType?: DepthValueSourceType;
@@ -71,13 +70,13 @@ export class PoissonDenoiseRenderPass implements DenoisePass {
   private _noiseTexture: Texture | null = null;
   private _pdMaterial?: ShaderMaterial;
   private _renderTargets: WebGLRenderTarget[] = [];
+  private _outputRenderTargetIndex: number = 0;
   private _renderPass: RenderPass = new RenderPass();
 
   public get texture(): Texture | null {
     return this.parameters.iterations > 0 && this._renderTargets.length > 0
-      ? this._renderTargets[this._renderTargets.length - 1].texture
+      ? this._renderTargets[this._outputRenderTargetIndex].texture
       : this._inputTexture;
-    //return this.denoisePass ? this.denoisePass.texture : null;
   }
 
   public set inputTexture(texture: Texture | null) {
@@ -161,7 +160,8 @@ export class PoissonDenoiseRenderPass implements DenoisePass {
       this._pdMaterial.defines.SAMPLE_VECTORS =
         generatePdSamplePointInitializer(
           this.parameters.samples,
-          this.parameters.rings
+          this.parameters.rings,
+          this.parameters.radiusExponent
         );
       this._pdMaterial.defines.NORMAL_VECTOR_TYPE =
         this._normalVectorSourceType ===
@@ -173,6 +173,8 @@ export class PoissonDenoiseRenderPass implements DenoisePass {
           ? 1
           : 0;
       this._pdMaterial.needsUpdate = true;
+      this._pdMaterial.defines.LUMINANCE_TYPE = 'vec3';
+      this._pdMaterial.defines.SAMPLE_LUMINANCE = 'a';
     }
     const depthTexture =
       this._depthValueSourceType === DepthValueSourceType.NORMAL_VECTOR_ALPHA
@@ -254,9 +256,10 @@ export class PoissonDenoiseRenderPass implements DenoisePass {
     const pdMaterial = this._getMaterial(camera, this.needsUpdate);
     this.needsUpdate = false;
     const renderTargets = this._getRenderTargets();
-    for (let i = 0; i < 2 * this.parameters.iterations; i++) {
+    for (let i = 0; i < this.parameters.iterations; i++) {
       const inputRenderTarget = renderTargets[(i + 1) % 2];
-      const outputRenderTarget = renderTargets[i % 2];
+      this._outputRenderTargetIndex = i % 2;
+      const outputRenderTarget = renderTargets[this._outputRenderTargetIndex];
       pdMaterial.uniforms.tDiffuse.value =
         i === 0 ? this._inputTexture : inputRenderTarget.texture;
       pdMaterial.uniforms.index.value = i;

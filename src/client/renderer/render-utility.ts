@@ -33,6 +33,7 @@ import {
   Vector3,
 } from 'three';
 import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass';
+import { SimplexNoise } from 'three/examples/jsm/math/SimplexNoise';
 
 const textureLoader: TextureLoader = new TextureLoader();
 
@@ -443,6 +444,7 @@ export const generateMagicSquare = (size: number): number[] => {
 export const generateMagicSquareDistributedKernelRotations = (
   size: number
 ): DataTexture => {
+  const simplex = new SimplexNoise();
   const noiseSize =
     Math.floor(size) % 2 === 0 ? Math.floor(size) + 1 : Math.floor(size);
   const magicSquare = generateMagicSquare(noiseSize);
@@ -459,7 +461,8 @@ export const generateMagicSquareDistributedKernelRotations = (
     data[inx * 4] = (randomVec.x * 0.5 + 0.5) * 255;
     data[inx * 4 + 1] = (randomVec.y * 0.5 + 0.5) * 255;
     data[inx * 4 + 2] = 127;
-    data[inx * 4 + 3] = 0;
+    data[inx * 4 + 3] =
+      (simplex.noise(inx / size, inx % size) * 0.5 + 0.5) * 255;
   }
   const noiseTexture = new DataTexture(data, noiseSize, noiseSize);
   noiseTexture.wrapS = RepeatWrapping;

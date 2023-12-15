@@ -1,9 +1,7 @@
 import type { QualityMap } from '../renderer/scene-renderer';
 import { QualityLevel } from '../renderer/scene-renderer';
-import {
-  AmbientOcclusionType,
-  ShadowBlurType,
-} from '../renderer/shadow-and-ao-pass';
+import { ShadowBlurType } from '../renderer/shadow-and-ao-pass';
+import { AoAlgorithms } from '../renderer/pass/ao-pass';
 
 const noEffectsSuspension: Record<string, any> = {
   effectSuspendFrames: 0,
@@ -26,26 +24,41 @@ const fullEffectsSuspension: Record<string, any> = {
   shadowOnCameraChange: ShadowBlurType.HARD,
 };
 
-export const defaultQualityLevels: QualityMap = new Map<
-  QualityLevel,
-  any
->([
+const shAndAoPassParameters = {
+  enabled: true,
+  aoOnGround: true,
+  shadowOnGround: true,
+  aoIntensity: 1.0,
+  shadowIntensity: 1.0,
+  ao : {
+    algorithm: AoAlgorithms.GTAO,
+    samples: 16,
+    radius: 0.5,
+    distanceExponent: 2,
+    thickness: 1.0,
+    distanceFallOff: 1.0,
+    scale: 1,
+    bias: 0.01,
+    screenSpaceRadius: false,
+  }
+};
+
+const screenSpaceShadowMapParameters = {
+  enableGroundBoundary: false,
+  directionalDependency: 1.0,
+  directionalExponent: 1.0,
+  groundBoundary: 0.0,
+  fadeOutDistance: 0.2,
+  fadeOutBlur: 5.0,
+}
+
+export const defaultQualityLevels: QualityMap = new Map<QualityLevel, any>([
   [
     QualityLevel.HIGHEST,
     {
       ...noEffectsSuspension,
-      shAndAoPassParameters: {
-        enabled: true,
-        aoType: AmbientOcclusionType.SSAO,
-        aoOnGround: true,
-        shadowOnGround: true,
-        aoIntensity: 0.7,
-        shadowIntensity: 0.5,
-      },
-      screenSpaceShadowMapParameters: {
-        directionalDependency: 1.0,
-        fadeOutDistance: 2.0,
-      },
+      shAndAoPassParameters,
+      screenSpaceShadowMapParameters,
       groundReflectionParameters: {
         enabled: true,
       },
@@ -58,18 +71,8 @@ export const defaultQualityLevels: QualityMap = new Map<
     QualityLevel.HIGH,
     {
       ...partialEffectsSuspension,
-      shAndAoPassParameters: {
-        enabled: true,
-        aoType: AmbientOcclusionType.SSAO,
-        aoOnGround: true,
-        shadowOnGround: true,
-        aoIntensity: 0.7,
-        shadowIntensity: 0.5,
-      },
-      screenSpaceShadowMapParameters: {
-        directionalDependency: 1.0,
-        fadeOutDistance: 2.0,
-      },
+      shAndAoPassParameters,
+      screenSpaceShadowMapParameters,
       groundReflectionParameters: {
         enabled: true,
       },
@@ -82,18 +85,8 @@ export const defaultQualityLevels: QualityMap = new Map<
     QualityLevel.MEDIUM,
     {
       ...fullEffectsSuspension,
-      shAndAoPassParameters: {
-        enabled: true,
-        aoType: AmbientOcclusionType.SSAO,
-        aoOnGround: true,
-        shadowOnGround: true,
-        aoIntensity: 0.7,
-        shadowIntensity: 0.5,
-      },
-      screenSpaceShadowMapParameters: {
-        directionalDependency: 1.0,
-        fadeOutDistance: 2.0,
-      },
+      shAndAoPassParameters,
+      screenSpaceShadowMapParameters,
       groundReflectionParameters: {
         enabled: false,
       },
@@ -119,4 +112,3 @@ export const defaultQualityLevels: QualityMap = new Map<
     },
   ],
 ]);
-

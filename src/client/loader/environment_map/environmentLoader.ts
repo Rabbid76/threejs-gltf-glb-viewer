@@ -39,11 +39,16 @@ export class EnvironmentLoader {
     );
   }
 
-  public setEnvironment(scene: Scene, parameters?: any): boolean {
+  public setEnvironment(
+    scene: Scene,
+    parameters?: any,
+    environmentName?: string
+  ): boolean {
+    const defaultEnvironmentName = environmentName ?? 'room environment';
     const environment = this.environemtMap.get(
       this.environmentName.length > 0
         ? this.environmentName
-        : 'room environment'
+        : defaultEnvironmentName
     );
     const changed = this.currentEnvironment !== environment;
     this.showBackground = parameters?.showEnvironment ?? false;
@@ -61,9 +66,10 @@ export class EnvironmentLoader {
 
   public loadDefaultEnvironment(
     changeEnvironment: boolean,
-    createSceneGenerator?: () => EnvironmentSceneGenerator
+    createSceneGenerator?: () => EnvironmentSceneGenerator,
+    environmentName?: string
   ) {
-    const defaultEnvironmentName = 'room environment';
+    const defaultEnvironmentName = environmentName ?? 'room environment';
     const roomSceneGenerator: EnvironmentSceneGenerator =
       (createSceneGenerator && createSceneGenerator()) ??
       new RoomEnvironmentSceneGenerator();

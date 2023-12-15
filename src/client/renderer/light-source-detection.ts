@@ -1,6 +1,8 @@
 import type { WebGLRenderer } from 'three';
 import {
+  Color,
   DataTexture,
+  FloatType,
   Mesh,
   MeshBasicMaterial,
   OrthographicCamera,
@@ -8,6 +10,7 @@ import {
   ShaderMaterial,
   Texture,
   UniformsUtils,
+  UnsignedByteType,
   Vector2,
   Vector3,
   WebGLRenderTarget,
@@ -33,7 +36,8 @@ export const equirectangularToSphere = (uv: Vector2): Vector3 => {
 
 export interface TextureConverterResult {
   texture: Texture;
-  pixels: Uint8Array;
+  pixels: Uint8Array | Float32Array;
+  sRgbaPixels: boolean;
 }
 
 export class TextureConverter {
@@ -50,10 +54,15 @@ export class TextureConverter {
     return this._colorRenderTarget;
   }
 
-  get environmentMapDecodeTarget(): WebGLRenderTarget {
+  public environmentMapDecodeTarget(
+    renderer: WebGLRenderer
+  ): WebGLRenderTarget {
+    const targetType = renderer.capabilities.isWebGL2
+      ? FloatType
+      : UnsignedByteType;
     this._environmentMapDecodeTarget =
-      this._environmentMapDecodeTarget ?? new WebGLRenderTarget();
-    //this._grayscaleRenderTarget = this._environmentMapDecodeTarget ?? new WebGLRenderTarget(1, 1, { format: RedFormat });
+      this._environmentMapDecodeTarget ??
+      new WebGLRenderTarget(1, 1, { type: targetType });
     return this._environmentMapDecodeTarget;
   }
 
@@ -95,7 +104,7 @@ export class TextureConverter {
     renderer.setRenderTarget(this.colorRenderTarget);
     renderer.render(this._planeMesh, this.camera);
     renderer.setRenderTarget(renderTargetBackup);
-    const colorTexture = this.environmentMapDecodeTarget.texture;
+    const colorTexture = this.environmentMapDecodeTarget(renderer).texture;
     const pixelBuffer = new Uint8Array(targetWidth * targetHeight * 4);
     renderer.readRenderTargetPixels(
       this.colorRenderTarget,
@@ -105,7 +114,7 @@ export class TextureConverter {
       targetHeight,
       pixelBuffer
     );
-    return { texture: colorTexture, pixels: pixelBuffer };
+    return { texture: colorTexture, pixels: pixelBuffer, sRgbaPixels: false };
   }
 
   public newGrayscaleTexture(
@@ -117,25 +126,33 @@ export class TextureConverter {
     const decodeMaterial = this.environmentMapDecodeMaterial(
       texture.name === 'PMREM.cubeUv'
     );
-    this.environmentMapDecodeTarget.setSize(targetWidth, targetHeight);
+    const envMapDecodeTarget = this.environmentMapDecodeTarget(renderer);
+    envMapDecodeTarget.setSize(targetWidth, targetHeight);
     decodeMaterial.setSourceTexture(texture);
     this._planeMesh =
       this._planeMesh ?? new Mesh(new PlaneGeometry(2, 2), decodeMaterial);
     const renderTargetBackup = renderer.getRenderTarget();
-    renderer.setRenderTarget(this.environmentMapDecodeTarget);
+    renderer.setRenderTarget(envMapDecodeTarget);
     renderer.render(this._planeMesh, this.camera);
     renderer.setRenderTarget(renderTargetBackup);
-    const grayscaleTexture = this.environmentMapDecodeTarget.texture;
-    const pixelBuffer = new Uint8Array(targetWidth * targetHeight * 4);
+    const grayscaleTexture = envMapDecodeTarget.texture;
+    const floatType = envMapDecodeTarget.texture.type === FloatType;
+    let pixelBuffer: Uint8Array | Float32Array = floatType
+      ? new Float32Array(targetWidth * targetHeight * 4)
+      : new Uint8Array(targetWidth * targetHeight * 4);
     renderer.readRenderTargetPixels(
-      this.environmentMapDecodeTarget,
+      envMapDecodeTarget,
       0,
       0,
       targetWidth,
       targetHeight,
       pixelBuffer
     );
-    return { texture: grayscaleTexture, pixels: pixelBuffer };
+    return {
+      texture: grayscaleTexture,
+      pixels: pixelBuffer,
+      sRgbaPixels: floatType,
+    };
   }
 }
 
@@ -237,10 +254,10 @@ export class EnvironmentMapDecodeMaterial extends ShaderMaterial {
 }
 
 export interface LightSourceDetectorParameters {
-  _numberOfSamples?: number;
-  _width?: number;
-  _height?: number;
-  _sampleThreshold?: number;
+  numberOfSamples?: number;
+  width?: number;
+  height?: number;
+  sampleThreshold?: number;
 }
 
 export class LightSourceDetector {
@@ -256,6 +273,7 @@ export class LightSourceDetector {
   public grayscaleTexture: TextureConverterResult = {
     texture: new Texture(),
     pixels: new Uint8Array(0),
+    sRgbaPixels: false,
   };
   public detectorTexture: Texture = new Texture();
   public detectorArray: Float32Array = new Float32Array(0);
@@ -263,12 +281,13 @@ export class LightSourceDetector {
   public lightSamples: LightSample[] = [];
   public lightGraph: LightGraph = new LightGraph(0);
   public lightSources: LightSource[] = [];
+  private _grayScale = new Vector3(0.2126, 0.7152, 0.0722);
 
   constructor(parameters?: LightSourceDetectorParameters) {
-    this._numberOfSamples = parameters?._numberOfSamples ?? 1000;
-    this._width = parameters?._width ?? 1024;
-    this._height = parameters?._height ?? 512;
-    this._sampleThreshold = parameters?._sampleThreshold ?? 0.707;
+    this._numberOfSamples = parameters?.numberOfSamples ?? 1000;
+    this._width = parameters?.width ?? 1024;
+    this._height = parameters?.height ?? 512;
+    this._sampleThreshold = parameters?.sampleThreshold ?? 0.707;
     this.pointDistance =
       Math.sqrt(4 * Math.PI) / Math.sqrt(this._numberOfSamples);
     this.pixelDistance = (Math.sqrt(2) * Math.PI * 2) / this._width;
@@ -294,7 +313,8 @@ export class LightSourceDetector {
       this._height
     );
     this.detectorArray = this._redFromRgbaToNormalizedFloatArray(
-      this.grayscaleTexture.pixels
+      this.grayscaleTexture.pixels,
+      this.grayscaleTexture.sRgbaPixels
     );
     this.detectorTexture = this._grayscaleTextureFromFloatArray(
       this.detectorArray,
@@ -330,25 +350,31 @@ export class LightSourceDetector {
   };
 
   private _redFromRgbaToNormalizedFloatArray(
-    rgba: Uint8Array,
+    rgba: Uint8Array | Float32Array,
+    sRgbaPixels: boolean,
     exponent?: number
   ): Float32Array {
     const floatArray = new Float32Array(rgba.length / 4);
     let minimumValue = 1;
     let maximumValue = 0;
     for (let i = 0; i < rgba.length / 4; ++i) {
-      const value = rgba[i * 4] / 255;
+      const color = new Color(...rgba.slice(i * 4, i * 4 + 3));
+      if (rgba instanceof Float32Array) {
+        color.convertSRGBToLinear();
+      }
+      const value = new Vector3(color.r, color.g, color.b).dot(this._grayScale);
       minimumValue = Math.min(minimumValue, value);
       maximumValue = Math.max(maximumValue, value);
       floatArray[i] = value;
     }
     if (exponent) {
       for (let i = 0; i < floatArray.length; ++i) {
-        const normalizedValue =
-          (floatArray[i] - minimumValue) / (maximumValue - minimumValue);
+        const normalizedValue = sRgbaPixels
+          ? floatArray[i]
+          : (floatArray[i] - minimumValue) / (maximumValue - minimumValue);
         floatArray[i] = Math.pow(normalizedValue, exponent);
       }
-    } else {
+    } else if (!sRgbaPixels) {
       for (let i = 0; i < floatArray.length; ++i) {
         floatArray[i] =
           (floatArray[i] - minimumValue) / (maximumValue - minimumValue);

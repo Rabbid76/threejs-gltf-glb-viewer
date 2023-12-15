@@ -36,19 +36,21 @@ export class LightSourceDetectorDebug {
     return planeMesh;
   }
 
-  public createDebugScene(scene: Scene) {
+  public createDebugScene(scene: Scene, maxNoOfLightSources?: number): void {
     this._scene = scene;
     this._createLightGraphInMap(
       this._lightSourceDetector.sampleUVs,
       this._lightSourceDetector.lightSamples,
-      this._lightSourceDetector.lightGraph
+      this._lightSourceDetector.lightGraph,
+      maxNoOfLightSources
     );
   }
 
   private _createLightGraphInMap(
     allLightSamplesUVs: Vector2[],
     lightSamples: LightSample[],
-    lightGraph: LightGraph
+    lightGraph: LightGraph,
+    maxNoOfLightSources?: number
   ) {
     let singleLightSamples: LightSample[] = [];
     let clusterLightSamples: LightSample[] = [];
@@ -80,7 +82,15 @@ export class LightSourceDetectorDebug {
       (lightSource) => lightSource.uv
     );
     this._createSamplePointsInMap(lightSourceUVs, 0.015, 0xffff00);
-    this._createCirclesInMap(this._lightSourceDetector.lightSources, 0x808000);
+    let lightSources = this._lightSourceDetector.lightSources;
+    if (
+      maxNoOfLightSources !== undefined &&
+      maxNoOfLightSources >= 0 &&
+      maxNoOfLightSources < lightSources.length
+    ) {
+      lightSources = lightSources.slice(0, maxNoOfLightSources);
+    }
+    this._createCirclesInMap(lightSources, 0x808000);
   }
 
   private _createSamplePointsInMap(
