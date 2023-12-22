@@ -32,7 +32,7 @@ const generateAoSamples = (samples: number, cosineWeighted: boolean) => {
   const kernel = [];
   for (let sampleIndex = 0; sampleIndex < samples; sampleIndex++) {
     const spiralAngle = sampleIndex * Math.PI * (3 - Math.sqrt(5));
-    let z = 0.01 + (sampleIndex / (samples - 1)) * 0.99;
+    const z = 0.01 + (sampleIndex / (samples - 1)) * 0.99;
     const radius = cosineWeighted ? Math.sqrt(1 - z * z) : 1 - z;
     const x = Math.cos(spiralAngle) * radius;
     const y = Math.sin(spiralAngle) * radius;

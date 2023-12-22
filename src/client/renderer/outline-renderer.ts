@@ -82,7 +82,7 @@ export class OutLineRenderer {
   }
 
   public updateParameters(parameters: OutlineParameters): void {
-    for (let propertyName in parameters) {
+    for (const propertyName in parameters) {
       if (this.parameters.hasOwnProperty(propertyName)) {
         this.parameters[propertyName] = parameters[propertyName];
       }

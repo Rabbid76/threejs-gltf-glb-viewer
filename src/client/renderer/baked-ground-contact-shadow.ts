@@ -208,7 +208,7 @@ export class BakedGroundContactShadow {
   }
 
   public updateParameters(parameters: BakedGroundContactShadowParameters) {
-    for (let propertyName in parameters) {
+    for (const propertyName in parameters) {
       if (this.parameters.hasOwnProperty(propertyName)) {
         this.parameters[propertyName] = parameters[propertyName];
       }

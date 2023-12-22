@@ -30,7 +30,7 @@ const shAndAoPassParameters = {
   shadowOnGround: true,
   aoIntensity: 1.0,
   shadowIntensity: 1.0,
-  ao : {
+  ao: {
     algorithm: AoAlgorithms.GTAO,
     samples: 16,
     radius: 0.5,
@@ -40,7 +40,7 @@ const shAndAoPassParameters = {
     scale: 1,
     bias: 0.01,
     screenSpaceRadius: false,
-  }
+  },
 };
 
 const screenSpaceShadowMapParameters = {
@@ -50,7 +50,7 @@ const screenSpaceShadowMapParameters = {
   groundBoundary: 0.0,
   fadeOutDistance: 0.2,
   fadeOutBlur: 5.0,
-}
+};
 
 export const defaultQualityLevels: QualityMap = new Map<QualityLevel, any>([
   [

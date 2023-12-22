@@ -20,7 +20,6 @@ import {
   FramebufferTexture,
   LinearFilter,
   Matrix4,
-  NearestFilter,
   ShaderMaterial,
   UniformsUtils,
   Vector2,
@@ -90,7 +89,7 @@ export class ScreenSpaceReflection {
     width: number,
     height: number,
     samples: number,
-    parameters?: any,
+    parameters?: any
   ) {
     if (parameters?.gBufferRenderTarget) {
       this._sharedGBufferRenderTarget = parameters?.gBufferRenderTarget;
@@ -101,7 +100,7 @@ export class ScreenSpaceReflection {
     this._ssrRenderPass = new SSRRenderPass(width, height, parameters);
     this._blendMaterial = new CopyTransformMaterial(
       {},
-      CopyMaterialBlendMode.DEFAULT,
+      CopyMaterialBlendMode.DEFAULT
     );
     this._renderPass = parameters?.renderPass || new RenderPass();
   }
@@ -131,7 +130,7 @@ export class ScreenSpaceReflection {
     scene: Scene,
     camera: Camera,
     illuminationBufferTexture: Texture | null,
-    fadeInMix: number = 0,
+    fadeInMix: number = 0
   ): void {
     if (
       !this._ssrRenderPass.parameters.enabled ||
@@ -144,11 +143,11 @@ export class ScreenSpaceReflection {
       this._copyDiffuseFrameTexture ??
       new FramebufferTexture(
         this._width * renderer.getPixelRatio(),
-        this._height * renderer.getPixelRatio(),
+        this._height * renderer.getPixelRatio()
       );
     renderer.copyFramebufferToTexture(
       new Vector2(),
-      this._copyDiffuseFrameTexture,
+      this._copyDiffuseFrameTexture
     );
     this.gBufferRenderTarget.render(renderer, scene, camera);
     this._ssrRenderPass.inputTexture = this._copyDiffuseFrameTexture;
@@ -163,7 +162,7 @@ export class ScreenSpaceReflection {
   private _renderToTarget(
     renderer: WebGLRenderer,
     finalTexture: Texture | null,
-    fadeInMix: number = 0,
+    fadeInMix: number = 0
   ): void {
     this._blendMaterial.update({
       texture: finalTexture,
@@ -180,7 +179,7 @@ export class ScreenSpaceReflection {
     this._renderPass.renderScreenSpace(
       renderer,
       this._blendMaterial,
-      renderer.getRenderTarget(),
+      renderer.getRenderTarget()
     );
   }
 }
@@ -247,7 +246,7 @@ export class SSRRenderPass {
     }
     if (updateShader) {
       const diagnalDist = Math.sqrt(
-        this._width * this._width + this._height * this._height,
+        this._width * this._width + this._height * this._height
       );
       this._ssrMaterial.defines.MAX_STEP = Math.min(diagnalDist, 400);
       this._ssrMaterial.defines.NO_GROUND_REFLECTION = 1;
@@ -283,10 +282,10 @@ export class SSRRenderPass {
     this._ssrMaterial.uniforms.resolution.value.set(this._width, this._height);
     this._ssrMaterial.uniforms.cameraMatrixWorld.value.copy(camera.matrixWorld);
     this._ssrMaterial.uniforms.cameraProjectionMatrix.value.copy(
-      camera.projectionMatrix,
+      camera.projectionMatrix
     );
     this._ssrMaterial.uniforms.cameraInverseProjectionMatrix.value.copy(
-      camera.projectionMatrixInverse,
+      camera.projectionMatrixInverse
     );
     this._ssrMaterial.uniforms.sceneBoxMin.value.copy(this._sceneBoxMin);
     this._ssrMaterial.uniforms.sceneBoxMax.value.copy(this._sceneBoxMax);
@@ -327,7 +326,7 @@ export class SSRRenderPass {
   }
 
   public updateParameters(parameters: any) {
-    for (let propertyName in parameters) {
+    for (const propertyName in parameters) {
       if (this.parameters.hasOwnProperty(propertyName)) {
         this.parameters[propertyName] = parameters[propertyName];
         this.needsUpdate = true;
@@ -347,14 +346,14 @@ export class SSRRenderPass {
     renderer: WebGLRenderer,
     camera: Camera,
     scene: Scene,
-    renderTarget?: WebGLRenderTarget,
+    renderTarget?: WebGLRenderTarget
   ) {
     const hbaoMaterial = this._getMaterial(camera, this.needsUpdate);
     this.needsUpdate = false;
     this._renderPass.renderScreenSpace(
       renderer,
       hbaoMaterial,
-      renderTarget ? renderTarget : this._getRenderTargets(),
+      renderTarget ? renderTarget : this._getRenderTargets()
     );
   }
 }

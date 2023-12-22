@@ -101,8 +101,7 @@ export class PoissonDenoiseRenderPass implements DenoisePass {
     this.depthTexture = parameters?.depthTexture || null;
     this.normalTexture = parameters?.normalTexture || null;
     if (parameters?.poissonDenoisePassParameters) {
-      this.parameters =
-        parameters.poissonDenoisePassParameters as PoissonDenoisePassParameters;
+      this.parameters = parameters.poissonDenoisePassParameters;
     }
     if (parameters) {
       this.updateTextures(parameters);
@@ -229,7 +228,7 @@ export class PoissonDenoiseRenderPass implements DenoisePass {
   }
 
   public updateParameters(parameters: PoissonDenoisePassParameters) {
-    for (let propertyName in parameters) {
+    for (const propertyName in parameters) {
       if (this.parameters.hasOwnProperty(propertyName)) {
         this.parameters[propertyName] = parameters[propertyName];
         this.needsUpdate = true;

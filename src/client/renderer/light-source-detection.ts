@@ -137,7 +137,7 @@ export class TextureConverter {
     renderer.setRenderTarget(renderTargetBackup);
     const grayscaleTexture = envMapDecodeTarget.texture;
     const floatType = envMapDecodeTarget.texture.type === FloatType;
-    let pixelBuffer: Uint8Array | Float32Array = floatType
+    const pixelBuffer: Uint8Array | Float32Array = floatType
       ? new Float32Array(targetWidth * targetHeight * 4)
       : new Uint8Array(targetWidth * targetHeight * 4);
     renderer.readRenderTargetPixels(

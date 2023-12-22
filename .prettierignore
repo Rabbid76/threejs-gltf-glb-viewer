@@ -1,0 +1,15 @@
+.devcontainer
+.vscode
+beta
+dist/client/**/*.js
+dist/server
+patches
+resource
+node_modules
+built
+output
+src/client/wasm_interfaces/*.*
+src/client/configurator/wasm/*.*
+*.js
+*.json
+*.md

@@ -300,7 +300,7 @@ export class GBufferMaterialCache extends ObjectRenderCache {
         this.addToCache(mesh, { visible: false });
       } else if (
         mesh.material instanceof MeshPhysicalMaterial &&
-        (mesh.material as MeshPhysicalMaterial).transmission > 0
+        mesh.material.transmission > 0
       ) {
         this.addToCache(mesh, { visible: false });
       }

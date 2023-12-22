@@ -26,22 +26,22 @@ const SSRShader = {
 
 	uniforms: {
 
-		'tDiffuse': { value: null },
-		'tNormal': { value: null },
-		'tDepth': { value: null },
-		'tIllumination': { value: null },
-		'cameraNear': { value: null },
-		'cameraFar': { value: null },
-		'resolution': { value: new Vector2() },
-		'cameraProjectionMatrix': { value: new Matrix4() },
-		'cameraInverseProjectionMatrix': { value: new Matrix4() },
-		'cameraMatrixWorld': { value: new Matrix4() },
-		'sceneBoxMin': { value: new Vector3(-1, -1, -1) },
-        'sceneBoxMax': { value: new Vector3(1, 1, 1) },
-		'opacity': { value: .5 },
-		'maxDistance': { value: 180 },
-		'cameraRange': { value: 0 },
-		'thickness': { value: .018 }
+		tDiffuse: { value: null },
+		tNormal: { value: null },
+		tDepth: { value: null },
+		tIllumination: { value: null },
+		cameraNear: { value: null },
+		cameraFar: { value: null },
+		resolution: { value: new Vector2() },
+		cameraProjectionMatrix: { value: new Matrix4() },
+		cameraInverseProjectionMatrix: { value: new Matrix4() },
+		cameraMatrixWorld: { value: new Matrix4() },
+		sceneBoxMin: { value: new Vector3(-1, -1, -1) },
+        sceneBoxMax: { value: new Vector3(1, 1, 1) },
+		opacity: { value: .5 },
+		maxDistance: { value: 180 },
+		cameraRange: { value: 0 },
+		thickness: { value: .018 }
 
 	},
 
@@ -282,14 +282,14 @@ const SSRDepthShader = {
 	name: 'SSRDepthShader',
 
 	defines: {
-		'PERSPECTIVE_CAMERA': 1
+		PERSPECTIVE_CAMERA: 1
 	},
 
 	uniforms: {
 
-		'tDepth': { value: null },
-		'cameraNear': { value: null },
-		'cameraFar': { value: null },
+		tDepth: { value: null },
+		cameraNear: { value: null },
+		cameraFar: { value: null },
 
 	},
 
@@ -352,9 +352,9 @@ const SSRBlurShader = {
 
 	uniforms: {
 
-		'tDiffuse': { value: null },
-		'resolution': { value: new Vector2() },
-		'opacity': { value: .5 },
+		tDiffuse: { value: null },
+		resolution: { value: new Vector2() },
+		opacity: { value: .5 },
 
 	},
 

@@ -1,8 +1,5 @@
-import { 
-  createSceneGroup,
-  GeometryAndMaterial,
-  MaterialData
-} from './meshConstructor'
+import type { GeometryAndMaterial, MaterialData } from './meshConstructor';
+import { createSceneGroup } from './meshConstructor';
 import { LightSources } from './lightSources';
 import {
   createGroundMaterial,
@@ -58,7 +55,7 @@ import type { CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.j
 // @ts-ignore
 import { GroundProjectedSkybox } from 'three/examples/jsm/objects/GroundProjectedSkybox.js';
 // @ts-ignore
-import Test64EnvMap from './../../../resources/test64.envmap'
+import Test64EnvMap from './../../../resources/test64.envmap';
 
 export interface SceneProperties {
   rotate: number;
@@ -447,11 +444,9 @@ export class SceneManager {
         this.turnTableGroup,
         true
       );
-      let selectedObject =
+      const selectedObject =
         intersects.length > 0 ? intersects[0].object : undefined;
-      this.sceneRenderer.selectObjects(
-        selectedObject ? [selectedObject as Object3D] : []
-      );
+      this.sceneRenderer.selectObjects(selectedObject ? [selectedObject] : []);
     }
   }
 

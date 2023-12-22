@@ -147,7 +147,7 @@ export class HBAOEffect {
         size,
         size,
         RGBAFormat,
-        UnsignedByteType,
+        UnsignedByteType
       );
       this._noiseTexture.wrapS = RepeatWrapping;
       this._noiseTexture.wrapT = RepeatWrapping;
@@ -210,10 +210,10 @@ export class HBAOEffect {
     this._hbaoMaterial.uniforms.tDepth.value = depthTexture;
     this._hbaoMaterial.uniforms.resolution.value.set(this._width, this._height);
     this._hbaoMaterial.uniforms.cameraProjectionMatrix.value.copy(
-      camera.projectionMatrix,
+      camera.projectionMatrix
     );
     this._hbaoMaterial.uniforms.cameraProjectionMatrixInverse.value.copy(
-      camera.projectionMatrixInverse,
+      camera.projectionMatrixInverse
     );
     const currentCamera = camera as PerspectiveCamera | OrthographicCamera;
     this._hbaoMaterial.uniforms.cameraNear.value = currentCamera.near;
@@ -249,7 +249,7 @@ export class HBAOEffect {
   }
 
   public updateParameters(parameters: any) {
-    for (let propertyName in parameters) {
+    for (const propertyName in parameters) {
       if (this.parameters.hasOwnProperty(propertyName)) {
         this.parameters[propertyName] = parameters[propertyName];
         this.needsUpdate = true;
@@ -269,14 +269,14 @@ export class HBAOEffect {
     renderer: WebGLRenderer,
     camera: Camera,
     scene: Scene,
-    renderTarget?: WebGLRenderTarget,
+    renderTarget?: WebGLRenderTarget
   ) {
     const hbaoMaterial = this._getMaterial(camera, this.needsUpdate);
     this.needsUpdate = false;
     this._renderPass.renderScreenSpace(
       renderer,
       hbaoMaterial,
-      renderTarget ? renderTarget : this._getRenderTargets(),
+      renderTarget ? renderTarget : this._getRenderTargets()
     );
   }
 }
@@ -356,7 +356,7 @@ export class PoissonDenoiseEffect implements DenoisePass {
         size,
         size,
         RGBAFormat,
-        UnsignedByteType,
+        UnsignedByteType
       );
       this._noiseTexture.wrapS = RepeatWrapping;
       this._noiseTexture.wrapT = RepeatWrapping;
@@ -398,7 +398,7 @@ export class PoissonDenoiseEffect implements DenoisePass {
       this._pdMaterial.defines.SAMPLE_VECTORS =
         generatePdSamplePointInitializer(
           this.parameters.samples,
-          this.parameters.rings,
+          this.parameters.rings
         );
       this._pdMaterial.defines.NORMAL_VECTOR_TYPE =
         this._normalVectorSourceType ===
@@ -420,7 +420,7 @@ export class PoissonDenoiseEffect implements DenoisePass {
     this._pdMaterial.uniforms.tDepth.value = depthTexture;
     this._pdMaterial.uniforms.resolution.value.set(this._width, this._height);
     this._pdMaterial.uniforms.cameraProjectionMatrixInverse.value.copy(
-      camera.projectionMatrixInverse,
+      camera.projectionMatrixInverse
     );
     this._pdMaterial.uniforms.lumaPhi.value = this.parameters.lumaPhi;
     this._pdMaterial.uniforms.depthPhi.value = this.parameters.depthPhi;
@@ -459,7 +459,7 @@ export class PoissonDenoiseEffect implements DenoisePass {
   }
 
   public updateParameters(parameters: any) {
-    for (let propertyName in parameters) {
+    for (const propertyName in parameters) {
       if (this.parameters.hasOwnProperty(propertyName)) {
         this.parameters[propertyName] = parameters[propertyName];
         this.needsUpdate = true;
@@ -494,7 +494,7 @@ export class PoissonDenoiseEffect implements DenoisePass {
         pdMaterial,
         outputRenderTarget,
         0xffffff,
-        1.0,
+        1.0
       );
     }
   }

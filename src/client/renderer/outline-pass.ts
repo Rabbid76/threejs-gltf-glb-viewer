@@ -328,7 +328,7 @@ export class OutlinePass extends Pass {
       if (object.isMesh || object.isSprite) {
         // only meshes and sprites are supported by OutlinePass
 
-        let bFound = selectedMeshes.some(
+        const bFound = selectedMeshes.some(
           (selectedMesh) => selectedMesh.id === object.id
         );
         if (bFound === false) {

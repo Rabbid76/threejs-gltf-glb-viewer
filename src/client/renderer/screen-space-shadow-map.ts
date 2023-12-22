@@ -181,7 +181,7 @@ export class ScreenSpaceShadowMap {
   }
 
   public updateParameters(parameters: ScreenSpaceShadowMapParameters) {
-    for (let propertyName in parameters) {
+    for (const propertyName in parameters) {
       if (this.parameters.hasOwnProperty(propertyName)) {
         this.parameters[propertyName] = parameters[propertyName];
       }
@@ -415,7 +415,7 @@ export class ScreenSpaceShadowMap {
   }
 
   private _getSortedShadowLightSources(): ActiveShadowLight[] {
-    let activeShadowLights: ActiveShadowLight[] = [];
+    const activeShadowLights: ActiveShadowLight[] = [];
     this._shadowLightSources.forEach((item) =>
       activeShadowLights.push(...item.prepareRenderShadow())
     );
@@ -441,7 +441,7 @@ export class ScreenSpaceShadowMap {
     activeShadowLights: ActiveShadowLight[]
   ) {
     let sumOfShadowLightIntensity = 0;
-    let maximumNumberOfLightSources =
+    const maximumNumberOfLightSources =
       this.parameters.maximumNumberOfLightSources;
     let noOfLights = 0;
     activeShadowLights.forEach((shadowLight) => {
@@ -838,7 +838,7 @@ abstract class BaseShadowLightSource implements ShadowLightSource {
 
   public updateBounds(sceneBounds: SceneVolume): void {
     if (this._shadowLightSource instanceof SpotLight) {
-      const camera = this._shadowLightSource.shadow.camera as PerspectiveCamera;
+      const camera = this._shadowLightSource.shadow.camera;
       const cameraViewBounds = sceneBounds.bounds
         .clone()
         .applyMatrix4(camera.matrixWorldInverse);

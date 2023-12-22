@@ -130,7 +130,7 @@ export class GroundReflectionPass {
   private _newRenderTarget(createDepthTexture: boolean): WebGLRenderTarget {
     const _width = this._width / this.parameters.renderTargetDownScale;
     const _height = this._height / this.parameters.renderTargetDownScale;
-    let additionalParameters: any = {};
+    const additionalParameters: any = {};
     if (createDepthTexture) {
       const depthTexture = new DepthTexture(_width, _height);
       depthTexture.format = DepthStencilFormat;
@@ -176,7 +176,7 @@ export class GroundReflectionPass {
   }
 
   public updateParameters(parameters: GroundReflectionParameters) {
-    for (let propertyName in parameters) {
+    for (const propertyName in parameters) {
       if (this.parameters.hasOwnProperty(propertyName)) {
         this.parameters[propertyName] = parameters[propertyName];
       }

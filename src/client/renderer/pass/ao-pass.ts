@@ -111,7 +111,7 @@ export class AORenderPass {
       DepthValueSourceType.NORMAL_VECTOR_ALPHA;
     this._modulateRedChannel = parameters?.modulateRedChannel || false;
     if (parameters?.aoParameters) {
-      this.parameters = parameters.aoParameters as AORenderPassParameters;
+      this.parameters = parameters.aoParameters;
     }
     if (parameters) {
       this.updateTextures(parameters);
@@ -291,7 +291,7 @@ export class AORenderPass {
   }
 
   public updateParameters(parameters: AORenderPassParameters) {
-    for (let propertyName in parameters) {
+    for (const propertyName in parameters) {
       if (this.parameters.hasOwnProperty(propertyName)) {
         this.parameters[propertyName] = parameters[propertyName];
         this.needsUpdate = true;

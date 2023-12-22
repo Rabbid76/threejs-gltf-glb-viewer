@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "description": "GLTF viewer",
   "scripts": {
+    "all": "npm run update:modules && npm run format && npm run build && npm run copy:deploy && npm run dev",
+    "format": "prettier . --write --ignore-path .prettierignore && npx eslint ./src/** --fix",
     "install:ncu": "npm install -g npm-check-updates",
     "install:webpack": "npm install --save-dev webpack",
     "update:modules": "ncu -u && npm update && npm i",
@@ -20,14 +22,22 @@
   "devDependencies": {
     "@types/dat.gui": "^0.7.12",
     "@types/express": "^4.17.21",
-    "@types/node": "^20.10.4",
+    "@types/node": "^20.10.5",
     "@types/three": "^0.159.0",
+    "@typescript-eslint/eslint-plugin": "6.15.0",
+    "@typescript-eslint/parser": "6.15.0",
     "axios": "^1.6.2",
     "copyfiles": "^2.4.1",
     "dat.gui": "^0.7.9",
+    "eslint": "8.56.0",
+    "eslint-config-prettier": "9.1.0",
+    "eslint-plugin-jest": "27.6.0",
+    "eslint-plugin-node": "11.1.0",
+    "eslint-plugin-prettier": "5.1.1",
     "install-peers": "^1.0.4",
     "npm-check-updates": "^16.14.12",
     "patch-package": "^8.0.0",
+    "prettier": "3.1.1",
     "raw-loader": "^4.0.2",
     "ts-loader": "^9.5.1",
     "typescript": "^5.3.3",
@@ -39,6 +49,6 @@
   "dependencies": {
     "express": "^4.18.2",
     "lodash": "^4.17.21",
-    "three": "0.159.0"
+    "three": "0.160.0"
   }
 }

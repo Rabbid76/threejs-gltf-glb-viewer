@@ -190,7 +190,7 @@ export class ShadowAndAoPass {
         }
       );
     } else {
-      const denoisePass = this._poissonDenoisePass as PoissonDenoiseRenderPass;
+      const denoisePass = this._poissonDenoisePass;
       denoisePass.depthTexture = this.gBufferRenderTarget.depthBufferTexture;
       denoisePass.normalTexture = this.gBufferRenderTarget.gBufferTexture;
     }
@@ -301,7 +301,7 @@ export class ShadowAndAoPass {
 
   private _updatePassParameters(parameters: ShadowAndAoPassParameters) {
     if (parameters?.shadow) {
-      for (let propertyName in parameters.shadow) {
+      for (const propertyName in parameters.shadow) {
         if (this.parameters.shadow.hasOwnProperty(propertyName)) {
           this.parameters.shadow[propertyName] =
             parameters.shadow[propertyName];
@@ -310,7 +310,7 @@ export class ShadowAndAoPass {
       }
     }
     if (parameters?.ao) {
-      for (let propertyName in parameters.ao) {
+      for (const propertyName in parameters.ao) {
         if (this.parameters.ao.hasOwnProperty(propertyName)) {
           this.parameters.ao[propertyName] = parameters.ao[propertyName];
           this.shadowAndAoRenderTargets.parametersNeedsUpdate = true;
@@ -324,7 +324,7 @@ export class ShadowAndAoPass {
       if (this._poissonDenoisePass) {
         this._poissonDenoisePass?.updateParameters(parameters?.poissonDenoise);
       } else {
-        for (let propertyName in parameters.poissonDenoise) {
+        for (const propertyName in parameters.poissonDenoise) {
           if (this.parameters.poissonDenoise.hasOwnProperty(propertyName)) {
             this.parameters.poissonDenoise[propertyName] =
               parameters.poissonDenoise[propertyName];

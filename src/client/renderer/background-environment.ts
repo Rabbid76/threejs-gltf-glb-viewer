@@ -58,7 +58,7 @@ export class BackgroundEnvironment {
   }
 
   private _updateParameters(parameters: any) {
-    for (let propertyName in parameters) {
+    for (const propertyName in parameters) {
       if (this.parameters.hasOwnProperty(propertyName)) {
         this.parameters[propertyName] = parameters[propertyName];
       }

@@ -52,8 +52,8 @@ export class LightSourceDetectorDebug {
     lightGraph: LightGraph,
     maxNoOfLightSources?: number
   ) {
-    let singleLightSamples: LightSample[] = [];
-    let clusterLightSamples: LightSample[] = [];
+    const singleLightSamples: LightSample[] = [];
+    const clusterLightSamples: LightSample[] = [];
     for (let i = 0; i < this._lightSourceDetector.lightGraph.noOfNodes; ++i) {
       if (lightGraph.adjacent[i].length === 0) {
         singleLightSamples.push(lightSamples[i]);
