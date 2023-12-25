@@ -1,4 +1,4 @@
-import type { Box3, Shader, WebGLRenderer } from 'three';
+import type { Box3, WebGLRenderer } from 'three';
 import { MeshLambertMaterial, Vector2, Vector3, Vector4 } from 'three';
 
 interface ThreeShader {
@@ -42,7 +42,7 @@ export class IlluminationBufferMaterial extends MeshLambertMaterial {
     IlluminationBufferMaterial._sceneBoxMax.copy(box.max);
   }
 
-  private _onBeforeCompile(materialShader: Shader, _renderer: WebGLRenderer) {
+  private _onBeforeCompile(materialShader: any, _renderer: WebGLRenderer) {
     materialShader.vertexShader = screenSpaceShadowMaterialVertexShader;
     materialShader.fragmentShader = screenSpaceShadowMaterialFragmentShader;
     (materialShader as ThreeShader).defines = Object.assign({

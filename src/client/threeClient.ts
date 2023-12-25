@@ -117,26 +117,22 @@ const setGroundMaterial = () => {
 };
 
 const fixedResolution: any = undefined;
-const threeCanvas = document.getElementById('three_canvas');
+const container = document.getElementById('container') as HTMLDivElement;
 const renderer = new WebGLRenderer({
-  // @ts-ignore
-  canvas: threeCanvas,
-  antialias: true,
+  antialias: !isMobile,
   alpha: true,
   preserveDrawingBuffer: true,
 });
 renderer.setPixelRatio(window.devicePixelRatio);
-//renderer.physicallyCorrectLights = true
 renderer.setSize(window.innerWidth, window.innerHeight);
-document.body.appendChild(renderer.domElement);
+container.appendChild(renderer.domElement);
 const labelRenderer = new CSS2DRenderer();
 labelRenderer.setSize(window.innerWidth, window.innerHeight);
 labelRenderer.domElement.style.position = 'absolute';
 labelRenderer.domElement.style.top = '0px';
 labelRenderer.domElement.style.pointerEvents = 'none';
-document.body.appendChild(labelRenderer.domElement);
+container.appendChild(labelRenderer.domElement);
 
-// @ts-ignore
 const stats = new Stats();
 document.body.appendChild(stats.dom);
 
