@@ -356,16 +356,18 @@ export const AOShader = {
 					// HBAO || GTAO
 					vec3 viewDelta = sampleSceneViewPos - viewPos;
 					if (abs(viewDelta.z) < thickness) {
+						vec2 clipRangeCheck = step(0., sampleSceneUvDepth.xy) * step(sampleSceneUvDepth.xy, vec2(1.));
 						float sampleCosHorizon = dot(viewDir, normalize(viewDelta));
-						cosHorizons.x += max(0., (sampleCosHorizon - cosHorizons.x) * mix(1., 2. / float(j + 2), distanceFallOff));
+						cosHorizons.x += max(0., (sampleCosHorizon - cosHorizons.x) * mix(1., 2. / float(j + 2), distanceFallOff) * clipRangeCheck.x * clipRangeCheck.y);
 					}		
 					#if AO_ALGORITHM == 4
 						sampleSceneUvDepth = getSceneUvAndDepth(viewPos - sampleViewOffset);
 						sampleSceneViewPos = getViewPosition(sampleSceneUvDepth.xy, sampleSceneUvDepth.z);
 						viewDelta = sampleSceneViewPos - viewPos;
 						if (abs(viewDelta.z) < thickness) {
+							vec2 clipRangeCheck = step(0., sampleSceneUvDepth.xy) * step(sampleSceneUvDepth.xy, vec2(1.));
 							float sampleCosHorizon = dot(viewDir, normalize(viewDelta));
-							cosHorizons.y += max(0., (sampleCosHorizon - cosHorizons.y) * mix(1., 2. / float(j + 2), distanceFallOff));	
+							cosHorizons.y += max(0., (sampleCosHorizon - cosHorizons.y) * mix(1., 2. / float(j + 2), distanceFallOff) * clipRangeCheck.x * clipRangeCheck.y);	
 						}
 					#endif
 				#elif AO_ALGORITHM == 2
