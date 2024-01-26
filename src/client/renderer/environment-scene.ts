@@ -1,5 +1,6 @@
 import { EnvironmentSceneGenerator } from './environment-definition';
 import type { BufferGeometry, Material } from 'three';
+import type { Enumify } from '../utils/types';
 import {
   AmbientLight,
   BoxGeometry,
@@ -9,15 +10,13 @@ import {
   Vector2,
 } from 'three';
 
-type Enumify<T> = T[keyof T];
-
-export const DefaultEnvironmentScenes = {
-  FRONT: 'front',
+export const DEFAULT_ENVIRONMENT_SCENE_TYPES = {
   ALL_AROUND: 'all_around',
+  FRONT: 'front',
 } as const;
 
 export type DefaultEnvironmentSceneType = Enumify<
-  typeof DefaultEnvironmentScenes
+  typeof DEFAULT_ENVIRONMENT_SCENE_TYPES
 > | null;
 
 export interface DefaultEnvironmentSceneParameters {
@@ -62,7 +61,7 @@ export class DefaultEnvironmentScene extends Scene {
 
   constructor(parameters: DefaultEnvironmentSceneParameters = {}) {
     super();
-    this._type = parameters?.type ?? DefaultEnvironmentScenes.ALL_AROUND;
+    this._type = parameters?.type ?? DEFAULT_ENVIRONMENT_SCENE_TYPES.ALL_AROUND;
     this._topLightIntensity =
       parameters?.topLightIntensity || parameters?.lightIntensity || 1.0;
     this._sideLightIntensity =
@@ -79,10 +78,10 @@ export class DefaultEnvironmentScene extends Scene {
   public generateScene(scene: Scene) {
     switch (this._type) {
       default:
-      case DefaultEnvironmentScenes.ALL_AROUND:
+      case DEFAULT_ENVIRONMENT_SCENE_TYPES.ALL_AROUND:
         this._createAllAroundSceneLight(scene);
         break;
-      case DefaultEnvironmentScenes.FRONT:
+      case DEFAULT_ENVIRONMENT_SCENE_TYPES.FRONT:
         this._createFrontSceneLight(scene);
         break;
     }
@@ -119,7 +118,8 @@ export class DefaultEnvironmentScene extends Scene {
           (i - 1) / 2,
           15,
           1.1,
-          0.33
+          0.33,
+          1
         );
       }
     }
@@ -129,7 +129,7 @@ export class DefaultEnvironmentScene extends Scene {
     const ambientLight = new AmbientLight(0xffffff);
     ambientLight.intensity = this._ambientLightIntensity;
     this.add(ambientLight);
-    this._createTopLight(scene, 5, 0.9);
+    this._createTopLight(scene, 5, 0.5);
     for (let i = 0; i < 6; i++) {
       const azimuthAngleInRad = (i * Math.PI * 2.0) / 6.0;
       const x = Math.sin(azimuthAngleInRad);
@@ -138,20 +138,21 @@ export class DefaultEnvironmentScene extends Scene {
         this._createReflector(scene, new Vector2(x, z), 3, 0.8, 0.4);
         for (let j = 0; j < 2; j++) {
           const tangentialAngleInRad =
-            ((i - 0.2 + j * 0.4) * Math.PI * 2.0) / 6.0;
+            ((i - 0.3 + j * 0.6) * Math.PI * 2.0) / 6.0;
           const x0 = Math.sin(tangentialAngleInRad);
           const z0 = Math.cos(tangentialAngleInRad);
           this._createSideLight(
             scene,
             new Vector2(x0, z0),
             (i - 1) / 2,
-            20,
-            1.1,
-            0.75
+            24,
+            1.2,
+            1,
+            0.8
           );
         }
       } else {
-        this._createReflector(scene, new Vector2(x, z), 3, 0.8, 1);
+        this._createReflector(scene, new Vector2(x, z), 5, 0.8, 1);
       }
     }
   }
@@ -178,7 +179,8 @@ export class DefaultEnvironmentScene extends Scene {
     index: number,
     intensity: number,
     scale: number,
-    level: number
+    level: number,
+    distance: number
   ) {
     for (let j = 0; j < 3; j++) {
       const li = intensity * this._sideLightIntensity;
@@ -196,9 +198,9 @@ export class DefaultEnvironmentScene extends Scene {
       const zOffset =
         (j === 1 ? direction.x : j === 2 ? -direction.x : 0) / Math.sqrt(2);
       light.position.set(
-        direction.x * 15.0 + xOffset * 1.1 * scale,
+        direction.x * distance * 15.0 + xOffset * 1.1 * scale,
         level * 15.0 + yOffset * 1.1 * scale,
-        direction.y * 15.0 + zOffset * 1.1 * scale
+        direction.y * distance * 15.0 + zOffset * 1.1 * scale
       );
       light.rotation.set(0, Math.atan2(direction.x, direction.y), 0);
       light.scale.setScalar(scale);

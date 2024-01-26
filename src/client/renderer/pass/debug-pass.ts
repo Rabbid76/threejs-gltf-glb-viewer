@@ -1,5 +1,6 @@
-import { RenderPass } from './render-utility';
-import type { CopyTransformMaterialParameters } from './shader-utility';
+import { RenderPass } from './render-pass';
+import type { RenderPassManager } from '../render-pass-manager';
+import type { CopyTransformMaterialParameters } from '../shader-utility';
 import {
   ALPHA_RGBA,
   ALPHA_TRANSFORM,
@@ -13,52 +14,20 @@ import {
   RED_TRANSFORM,
   RGB_TRANSFORM,
   ZERO_RGBA,
-} from './shader-utility';
-import type { SceneRenderer } from './scene-renderer';
-import type { GBufferRenderTargets } from './gbuffer-render-target';
-import type { BakedGroundContactShadow } from './baked-ground-contact-shadow';
-import type { ScreenSpaceShadowMap } from './screen-space-shadow-map';
+} from '../shader-utility';
 import { ShadowAndAoPass } from './shadow-and-ao-pass';
-import type { GroundReflectionPass } from './ground-reflection-pass';
-import { EnvironmentMapDecodeMaterial } from './light-source-detection';
-import type {
-  Camera,
-  Material,
-  Scene,
-  ShaderMaterial,
-  Texture,
-  WebGLRenderer,
-} from 'three';
-import {
-  Color,
-  DoubleSide,
-  Matrix4,
-  MeshStandardMaterial,
-  NoBlending,
-  OrthographicCamera,
-  Vector4,
-} from 'three';
+import { EnvironmentMapDecodeMaterial } from '../light-source-detection';
+import type { Camera, ShaderMaterial, Texture, WebGLRenderer } from 'three';
+import { Color, Matrix4, NoBlending, OrthographicCamera, Vector4 } from 'three';
 
-type RenderFunction = (
-  renderer: WebGLRenderer,
-  scene: Scene,
-  camera: Camera
-) => void;
-
-export class DebugPass {
-  public grayMaterial = new MeshStandardMaterial({
-    color: 0xc0c0c0,
-    side: DoubleSide,
-    envMapIntensity: 0.4,
-  });
+export class DebugPass extends RenderPass {
   private _environmentMapDecodeMaterial: EnvironmentMapDecodeMaterial;
-  private _sceneRenderer: SceneRenderer;
   private _copyMaterial?: CopyTransformMaterial;
   private _depthRenderMaterial?: LinearDepthRenderMaterial;
-  private _renderPass: RenderPass = new RenderPass();
+  public debugOutput: string = '';
 
-  constructor(sceneRenderer: SceneRenderer) {
-    this._sceneRenderer = sceneRenderer;
+  constructor(renderPassManager: RenderPassManager) {
+    super(renderPassManager);
     this._environmentMapDecodeMaterial = new EnvironmentMapDecodeMaterial(
       true,
       false
@@ -67,30 +36,9 @@ export class DebugPass {
     this._environmentMapDecodeMaterial.depthTest = false;
   }
 
-  private get _gBufferRenderTarget(): GBufferRenderTargets {
-    return this._sceneRenderer.gBufferRenderTarget;
-  }
-
-  private get _screenSpaceShadow(): ScreenSpaceShadowMap {
-    return this._sceneRenderer.screenSpaceShadow;
-  }
-
-  private get _shadowAndAoPass(): ShadowAndAoPass {
-    return this._sceneRenderer.shadowAndAoPass;
-  }
-
-  private get _groundReflectionPass(): GroundReflectionPass {
-    return this._sceneRenderer.groundReflectionPass;
-  }
-
-  private get _bakedGroundContactShadow(): BakedGroundContactShadow {
-    return this._sceneRenderer.bakedGroundContactShadow;
-  }
-
   public dispose(): void {
     this._depthRenderMaterial?.dispose();
     this._copyMaterial?.dispose();
-    this.grayMaterial.dispose();
   }
 
   protected getCopyMaterial(
@@ -104,71 +52,32 @@ export class DebugPass {
     this._depthRenderMaterial =
       this._depthRenderMaterial ??
       new LinearDepthRenderMaterial({
-        depthTexture: this._gBufferRenderTarget.textureWithDepthValue,
-        depthFilter: this._gBufferRenderTarget
-          .isFloatGBufferWithRgbNormalAlphaDepth
+        depthTexture: this.gBufferTextures.textureWithDepthValue,
+        depthFilter: this.gBufferTextures.isFloatGBufferWithRgbNormalAlphaDepth
           ? new Vector4(0, 0, 0, 1)
           : new Vector4(1, 0, 0, 0),
       });
     return this._depthRenderMaterial.update({ camera });
   }
 
-  public render(
-    preRenderPasses: RenderFunction,
-    _renderPass: RenderFunction,
-    postProcessingPassed: RenderFunction,
-    renderer: WebGLRenderer,
-    scene: Scene,
-    camera: Camera,
-    debugOutput: string
-  ): void {
-    preRenderPasses(renderer, scene, camera);
-    if (debugOutput === 'color') {
-      renderer.render(scene, camera);
-      return;
-    }
-    if (debugOutput === 'grayscale') {
-      this._sceneRenderer.renderCacheManager.render('debug', scene, () => {
-        this._renderPass.renderWithOverrideMaterial(
-          renderer,
-          scene,
-          camera,
-          this.grayMaterial as Material,
-          null,
-          0,
-          1
-        );
-      });
-    } else {
-      _renderPass(renderer, scene, camera);
-    }
-    postProcessingPassed(renderer, scene, camera);
-    this._renderDebugPass(renderer, scene, camera, debugOutput);
-  }
-
   // eslint-disable-next-line complexity
-  private _renderDebugPass(
-    renderer: WebGLRenderer,
-    scene: Scene,
-    camera: Camera,
-    debugOutput: string
-  ): void {
-    switch (debugOutput) {
+  public renderPass(renderer: WebGLRenderer): void {
+    switch (this.debugOutput) {
       default:
         break;
       case 'lineardepth':
-        this._renderPass.renderScreenSpace(
+        this.passRenderer.renderScreenSpace(
           renderer,
-          this._getDepthRenderMaterial(camera),
+          this._getDepthRenderMaterial(this.camera),
           null
         );
         break;
       case 'g-normal':
-        if (this._gBufferRenderTarget.isFloatGBufferWithRgbNormalAlphaDepth) {
-          this._renderPass.renderScreenSpace(
+        if (this.gBufferTextures.isFloatGBufferWithRgbNormalAlphaDepth) {
+          this.passRenderer.renderScreenSpace(
             renderer,
             this.getCopyMaterial({
-              texture: this._gBufferRenderTarget?.gBufferTexture,
+              texture: this.gBufferTextures?.gBufferTexture,
               blending: NoBlending,
               // prettier-ignore
               colorTransform: new Matrix4().set(
@@ -184,10 +93,10 @@ export class DebugPass {
             null
           );
         } else {
-          this._renderPass.renderScreenSpace(
+          this.passRenderer.renderScreenSpace(
             renderer,
             this.getCopyMaterial({
-              texture: this._gBufferRenderTarget?.gBufferTexture,
+              texture: this.gBufferTextures?.gBufferTexture,
               blending: NoBlending,
               colorTransform: RGB_TRANSFORM,
               colorBase: ALPHA_RGBA,
@@ -199,11 +108,11 @@ export class DebugPass {
         }
         break;
       case 'g-depth':
-        if (this._gBufferRenderTarget.isFloatGBufferWithRgbNormalAlphaDepth) {
-          this._renderPass.renderScreenSpace(
+        if (this.gBufferTextures.isFloatGBufferWithRgbNormalAlphaDepth) {
+          this.passRenderer.renderScreenSpace(
             renderer,
             this.getCopyMaterial({
-              texture: this._gBufferRenderTarget?.gBufferTexture,
+              texture: this.gBufferTextures?.gBufferTexture,
               blending: NoBlending,
               colorTransform: ALPHA_TRANSFORM,
               colorBase: ALPHA_RGBA,
@@ -213,10 +122,10 @@ export class DebugPass {
             null
           );
         } else {
-          this._renderPass.renderScreenSpace(
+          this.passRenderer.renderScreenSpace(
             renderer,
             this.getCopyMaterial({
-              texture: this._gBufferRenderTarget?.depthBufferTexture,
+              texture: this.gBufferTextures?.depthBufferTexture,
               blending: NoBlending,
               colorTransform: RED_TRANSFORM,
               colorBase: ALPHA_RGBA,
@@ -228,11 +137,11 @@ export class DebugPass {
         }
         break;
       case 'ssao':
-        this._renderPass.renderScreenSpace(
+        this.passRenderer.renderScreenSpace(
           renderer,
           this.getCopyMaterial({
             texture:
-              this._shadowAndAoPass.shadowAndAoRenderTargets.passRenderTarget
+              this.renderPassManager.shadowAndAoPass.aoAndSoftShadowRenderTarget
                 .texture,
             blending: NoBlending,
             colorTransform: GRAYSCALE_TRANSFORM,
@@ -244,10 +153,11 @@ export class DebugPass {
         );
         break;
       case 'ssaodenoise':
-        this._renderPass.renderScreenSpace(
+        this.passRenderer.renderScreenSpace(
           renderer,
           this.getCopyMaterial({
-            texture: this._shadowAndAoPass.denoiseRenderTargetTexture,
+            texture:
+              this.renderPassManager.shadowAndAoPass.denoiseRenderTargetTexture,
             blending: NoBlending,
             colorTransform: GRAYSCALE_TRANSFORM,
             colorBase: ZERO_RGBA,
@@ -258,10 +168,11 @@ export class DebugPass {
         );
         break;
       case 'shadowmap':
-        this._renderPass.renderScreenSpace(
+        this.passRenderer.renderScreenSpace(
           renderer,
           this.getCopyMaterial({
-            texture: this._screenSpaceShadow.shadowTexture,
+            texture:
+              this.renderPassManager.screenSpaceShadowMapPass.shadowTexture,
             blending: NoBlending,
             colorTransform: GRAYSCALE_TRANSFORM,
             colorBase: ZERO_RGBA,
@@ -271,12 +182,12 @@ export class DebugPass {
           null
         );
         break;
-      case 'shadow':
-        this._renderPass.renderScreenSpace(
+      case 'shadowsoft':
+        this.passRenderer.renderScreenSpace(
           renderer,
           this.getCopyMaterial({
             texture:
-              this._shadowAndAoPass.shadowAndAoRenderTargets.passRenderTarget
+              this.renderPassManager.shadowAndAoPass.aoAndSoftShadowRenderTarget
                 .texture,
             blending: NoBlending,
             colorTransform: ShadowAndAoPass.shadowTransform,
@@ -287,11 +198,12 @@ export class DebugPass {
           null
         );
         break;
-      case 'shadowblur':
-        this._renderPass.renderScreenSpace(
+      case 'shadowdenoise':
+        this.passRenderer.renderScreenSpace(
           renderer,
           this.getCopyMaterial({
-            texture: this._shadowAndAoPass.denoiseRenderTargetTexture,
+            texture:
+              this.renderPassManager.shadowAndAoPass.denoiseRenderTargetTexture,
             blending: NoBlending,
             colorTransform: ShadowAndAoPass.shadowTransform,
             colorBase: ZERO_RGBA,
@@ -302,10 +214,11 @@ export class DebugPass {
         );
         break;
       case 'shadowfadein':
-        this._renderPass.renderScreenSpace(
+        this.passRenderer.renderScreenSpace(
           renderer,
           this.getCopyMaterial({
-            texture: this._shadowAndAoPass.fadeRenderTarget.texture,
+            texture:
+              this.renderPassManager.shadowAndAoPass.fadeRenderTarget.texture,
             blending: NoBlending,
             colorTransform: ShadowAndAoPass.shadowTransform,
             colorBase: ZERO_RGBA,
@@ -316,14 +229,15 @@ export class DebugPass {
         );
         break;
       case 'shadowandao':
-        this._renderPass.renderScreenSpace(
+        this.passRenderer.renderScreenSpace(
           renderer,
           this.getCopyMaterial({
-            texture: this._shadowAndAoPass.denoiseRenderTargetTexture,
+            texture:
+              this.renderPassManager.shadowAndAoPass.denoiseRenderTargetTexture,
             blending: NoBlending,
             colorTransform: interpolationMatrix(
-              this._shadowAndAoPass.parameters.aoIntensity,
-              this._shadowAndAoPass.parameters.shadowIntensity,
+              this.renderPassManager.shadowAndAoPass.parameters.aoIntensity,
+              this.renderPassManager.shadowAndAoPass.parameters.shadowIntensity,
               0,
               1
             ),
@@ -335,10 +249,12 @@ export class DebugPass {
         );
         break;
       case 'groundreflection':
-        this._renderPass.renderScreenSpace(
+        this.passRenderer.renderScreenSpace(
           renderer,
           this.getCopyMaterial({
-            texture: this._groundReflectionPass.reflectionRenderTarget.texture,
+            texture:
+              this.renderPassManager.groundReflectionPass.reflectionRenderTarget
+                .texture,
             blending: NoBlending,
             colorTransform: DEFAULT_TRANSFORM,
             colorBase: ZERO_RGBA,
@@ -349,10 +265,12 @@ export class DebugPass {
         );
         break;
       case 'bakedgroundshadow':
-        this._renderPass.renderScreenSpace(
+        this.passRenderer.renderScreenSpace(
           renderer,
           this.getCopyMaterial({
-            texture: this._bakedGroundContactShadow.renderTarget.texture,
+            texture:
+              this.renderPassManager.bakedGroundContactShadowPass.renderTarget
+                .texture,
             blending: NoBlending,
             colorTransform: DEFAULT_TRANSFORM,
             colorBase: ZERO_RGBA,
@@ -364,17 +282,17 @@ export class DebugPass {
         break;
       case 'environmentmap':
         this._environmentMapDecodeMaterial.setSourceTexture(
-          scene.environment as Texture
+          this.scene.environment as Texture
         );
-        this._renderPass.renderScreenSpace(
+        this.passRenderer.renderScreenSpace(
           renderer,
           this._environmentMapDecodeMaterial,
           null
         );
         break;
       case 'lightsourcedetection':
-        if (scene.userData?.environmentDefinition) {
-          const aspect = this._sceneRenderer.width / this._sceneRenderer.height;
+        if (this.scene.userData?.environmentDefinition) {
+          const aspect = this.renderPassManager.aspect;
           const environmentCamera = new OrthographicCamera(
             -1,
             1,
@@ -384,10 +302,10 @@ export class DebugPass {
             1
           );
           const environmentScene =
-            scene.userData?.environmentDefinition.createDebugScene(
+            this.scene.userData?.environmentDefinition.createDebugScene(
               renderer,
-              scene,
-              this._sceneRenderer.screenSpaceShadow.parameters
+              this.scene,
+              this.renderPassManager.screenSpaceShadowMapPass.parameters
                 .maximumNumberOfLightSources
             );
           environmentScene.background = new Color(0xffffff);

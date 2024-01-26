@@ -1,6 +1,7 @@
 import type { SceneRenderer } from './scene-renderer';
-import { QualityLevel } from './scene-renderer';
-import { AoAlgorithms } from './pass/ao-pass';
+import { QUALITY_LEVELS } from './scene-renderer';
+import type { AoAlgorithmType } from './pass/ao-pass';
+import { AO_ALGORITHMS } from './pass/ao-pass';
 import {
   ACESFilmicToneMapping,
   CineonToneMapping,
@@ -89,10 +90,10 @@ export class SceneRendererGUI {
 
   private _addDebugGUI(gui: GUI, updateCallback: () => void): void {
     const qualityLevels = new Map([
-      ['HIGHEST', QualityLevel.HIGHEST],
-      ['HIGH', QualityLevel.HIGH],
-      ['MEDIUM', QualityLevel.MEDIUM],
-      ['LOW', QualityLevel.LOW],
+      ['HIGHEST', QUALITY_LEVELS.HIGHEST],
+      ['HIGH', QUALITY_LEVELS.HIGH],
+      ['MEDIUM', QUALITY_LEVELS.MEDIUM],
+      ['LOW', QUALITY_LEVELS.LOW],
     ]);
     const outputQualityNames: string[] = [];
     qualityLevels.forEach((value, key) => outputQualityNames.push(key));
@@ -101,7 +102,7 @@ export class SceneRendererGUI {
       .onChange((qualityLevel: string) => {
         if (qualityLevels.has(qualityLevel)) {
           this._sceneRenderer.setQualityLevel(
-            qualityLevels.get(qualityLevel) ?? QualityLevel.HIGHEST
+            qualityLevels.get(qualityLevel) ?? QUALITY_LEVELS.HIGHEST
           );
         }
       });
@@ -116,8 +117,8 @@ export class SceneRendererGUI {
         'AO pure': 'ssao',
         'AO denoised': 'ssaodenoise',
         'shadow map': 'shadowmap',
-        'shadow Monte Carlo': 'shadow',
-        'shadow blur': 'shadowblur',
+        'shadow soft': 'shadowsoft',
+        'shadow denoised': 'shadowdenoise',
         'shadow fade in': 'shadowfadein',
         'shadow and AO': 'shadowandao',
         'ground reflection': 'groundreflection',
@@ -131,21 +132,21 @@ export class SceneRendererGUI {
 
   private _addShadowTypeGUI(gui: GUI, updateCallback: () => void): void {
     const shadowConfiguration =
-      this._sceneRenderer.screenSpaceShadow.shadowConfiguration;
+      this._sceneRenderer.screenSpaceShadowMapPass.shadowConfiguration;
     const shadowMapNames: any[] = [];
     shadowConfiguration.types.forEach((_, key) => {
       shadowMapNames.push(key);
     });
     const updateShadow = () => {
-      this._sceneRenderer.screenSpaceShadow.needsUpdate = true;
-      this._sceneRenderer.screenSpaceShadow.shadowTypeNeedsUpdate = true;
+      this._sceneRenderer.screenSpaceShadowMapPass.needsUpdate = true;
+      this._sceneRenderer.screenSpaceShadowMapPass.shadowTypeNeedsUpdate = true;
       this._sceneRenderer.shadowAndAoPass.needsUpdate = true;
       updateCallback();
     };
     gui
       .add<any>(shadowConfiguration, 'shadowType', shadowMapNames)
       .onChange((type: string) => {
-        if (this._sceneRenderer.screenSpaceShadow.switchType(type)) {
+        if (this._sceneRenderer.screenSpaceShadowMapPass.switchType(type)) {
           shadowBiasController.object =
             shadowConfiguration.currentConfiguration;
           shadowNormalBiasController.object =
@@ -182,27 +183,26 @@ export class SceneRendererGUI {
 
   private _addShadowAndAoGUI(gui: GUI, updateCallback: () => void): void {
     const updateParameters = (): void => {
-      this._sceneRenderer.gBufferRenderTarget.needsUpdate = true;
-      this._sceneRenderer.screenSpaceShadow.needsUpdate = true;
+      this._sceneRenderer.gBufferRenderPass.needsUpdate = true;
+      this._sceneRenderer.screenSpaceShadowMapPass.needsUpdate = true;
       this._sceneRenderer.shadowAndAoPass.needsUpdate = true;
-      this._sceneRenderer.shadowAndAoPass.shadowAndAoRenderTargets.parametersNeedsUpdate =
-        true;
+      this._sceneRenderer.shadowAndAoPass.softShadowPass.needsUpdate = true;
       updateCallback();
     };
     const parameters = this._sceneRenderer.shadowAndAoPass.parameters;
     const shadowParameters = parameters.shadow;
     const shadowMapParameters =
-      this._sceneRenderer.screenSpaceShadow.parameters;
+      this._sceneRenderer.screenSpaceShadowMapPass.parameters;
     const aoParameters = parameters.ao;
     const denoiseParameters = parameters.poissonDenoise;
     gui.add<any>(parameters, 'enabled').onChange(() => updateParameters());
-    const aoTypes = new Map([
+    const aoTypes = new Map<string, AoAlgorithmType>([
       ['none', null],
-      ['SSAO', AoAlgorithms.SSAO],
-      ['SAO', AoAlgorithms.SAO],
-      ['N8AO', AoAlgorithms.N8AO],
-      ['HBAO', AoAlgorithms.HBAO],
-      ['GTAO', AoAlgorithms.GTAO],
+      ['SSAO', AO_ALGORITHMS.SSAO],
+      ['SAO', AO_ALGORITHMS.SAO],
+      ['N8AO', AO_ALGORITHMS.N8AO],
+      ['HBAO', AO_ALGORITHMS.HBAO],
+      ['GTAO', AO_ALGORITHMS.GTAO],
     ]);
     const aoNames: string[] = Array.from(aoTypes.keys());
     aoTypes.forEach((value, key) => {
@@ -229,7 +229,7 @@ export class SceneRendererGUI {
       .add<any>(parameters, 'progressiveDenoiseIterations', 0, 3, 1)
       .onChange(() => updateParameters());
 
-    const shFolder = gui.addFolder('Shadow and Monte Carlo integration');
+    const shFolder = gui.addFolder('Environment Shadow');
     shFolder
       .add<any>(shadowMapParameters, 'maximumNumberOfLightSources', -1, 10, 1)
       .onChange(() => updateParameters());
@@ -262,7 +262,7 @@ export class SceneRendererGUI {
         if (aoTypes.has(aoType)) {
           const type = aoTypes.get(aoType);
           aoParameters.algorithm =
-            type !== undefined ? type : AoAlgorithms.SSAO;
+            type !== undefined ? type : AO_ALGORITHMS.SSAO;
           updateParameters();
         }
       });
@@ -347,7 +347,7 @@ export class SceneRendererGUI {
     updateCallback: () => void
   ): void {
     const updateParameters = (): void => {
-      this._sceneRenderer.bakedGroundContactShadow.applyParameters();
+      this._sceneRenderer.bakedGroundContactShadowPass.applyParameters();
       updateCallback();
     };
     const parameters =

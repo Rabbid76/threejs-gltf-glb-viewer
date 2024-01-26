@@ -1,9 +1,11 @@
-import { BlurPass, RenderPass } from './render-utility';
+import { BlurPass } from '../render-utility';
+import { RenderPass } from './render-pass';
+import type { RenderPassManager } from '../render-pass-manager';
 import {
   BlurShader,
   CopyTransformMaterial,
   FLIP_Y_UV_TRANSFORM,
-} from './shader-utility';
+} from '../shader-utility';
 import type {
   Camera,
   OrthographicCamera,
@@ -52,7 +54,6 @@ export interface GroundReflectionParameters {
 }
 
 export interface GroundReflectionConstructorParameters {
-  renderPass?: RenderPass;
   enabled?: boolean;
   intensity?: number;
   fadeOutDistance?: number;
@@ -66,14 +67,14 @@ export interface GroundReflectionConstructorParameters {
   renderTargetDownScale?: number;
 }
 
-export class GroundReflectionPass {
+export class GroundReflectionPass extends RenderPass {
   private _width: number;
   private _height: number;
   public parameters: GroundReflectionParameters;
+  public reflectionFadeInScale: number = 1;
   private _reflectionRenderTarget?: WebGLRenderTarget;
   private _intensityRenderTarget?: WebGLRenderTarget;
   private _blurRenderTarget?: WebGLRenderTarget;
-  private _renderPass: RenderPass;
   private _blurPass: BlurPass;
   private _reflectionIntensityMaterial: GroundReflectionIntensityMaterial;
   private _copyMaterial: CopyTransformMaterial;
@@ -97,10 +98,12 @@ export class GroundReflectionPass {
   }
 
   constructor(
+    renderPassManager: RenderPassManager,
     width: number,
     height: number,
     parameters: GroundReflectionConstructorParameters
   ) {
+    super(renderPassManager);
     this._width = width;
     this._height = height;
     this.parameters = {
@@ -123,8 +126,10 @@ export class GroundReflectionPass {
       width: this._width / this.parameters.renderTargetDownScale,
       height: this._height / this.parameters.renderTargetDownScale,
     });
-    this._blurPass = new BlurPass(BlurShader, parameters);
-    this._renderPass = parameters?.renderPass ?? new RenderPass();
+    this._blurPass = new BlurPass(BlurShader, {
+      ...parameters,
+      passRenderer: this.renderPassManager.passRenderer,
+    });
   }
 
   private _newRenderTarget(createDepthTexture: boolean): WebGLRenderTarget {
@@ -148,6 +153,7 @@ export class GroundReflectionPass {
   }
 
   public dispose() {
+    super.dispose();
     this._reflectionRenderTarget?.dispose();
     this._intensityRenderTarget?.dispose();
     this._blurRenderTarget?.dispose();
@@ -210,22 +216,24 @@ export class GroundReflectionPass {
     this._copyMaterial.depthWrite = false;
   }
 
-  public render(
-    renderer: WebGLRenderer,
-    scene: Scene,
-    camera: Camera,
-    reflectionFadeInScale: number = 1
-  ): void {
-    if (!this.parameters.enabled || !(camera instanceof PerspectiveCamera)) {
+  public renderPass(renderer: WebGLRenderer): void {
+    if (
+      !this.parameters.enabled ||
+      !(this.camera instanceof PerspectiveCamera)
+    ) {
       return;
     }
-    const groundReflectionCamera = this._createGroundReflectionCamera(camera);
-    this._renderGroundReflection(
-      renderer,
-      scene,
-      groundReflectionCamera,
-      this.reflectionRenderTarget
+    const groundReflectionCamera = this._createGroundReflectionCamera(
+      this.camera
     );
+    this.renderCacheManager.render('inivisibleGround', this.scene, () => {
+      this._renderGroundReflection(
+        renderer,
+        this.scene,
+        groundReflectionCamera,
+        this.reflectionRenderTarget
+      );
+    });
     this._renderGroundReflectionIntensity(
       renderer,
       groundReflectionCamera,
@@ -235,14 +243,17 @@ export class GroundReflectionPass {
       this.parameters.blurHorizontal > 0 ||
       this.parameters.blurVertical > 0
     ) {
-      this.blurReflection(renderer, camera, [
+      this.blurReflection(renderer, this.camera, [
         this.intensityRenderTarget,
         this.blurRenderTarget,
         this.intensityRenderTarget,
       ]);
     }
-    this._updateCopyMaterial(this.intensityRenderTarget, reflectionFadeInScale);
-    this._renderPass.renderScreenSpace(
+    this._updateCopyMaterial(
+      this.intensityRenderTarget,
+      this.reflectionFadeInScale
+    );
+    this.passRenderer.renderScreenSpace(
       renderer,
       this._copyMaterial,
       renderer.getRenderTarget()
@@ -272,7 +283,7 @@ export class GroundReflectionPass {
   ) {
     const renderTargetBackup = renderer.getRenderTarget();
     renderer.setRenderTarget(renderTarget);
-    this._renderPass.renderScreenSpace(
+    this.passRenderer.renderScreenSpace(
       renderer,
       this._reflectionIntensityMaterial.update({
         texture: this.reflectionRenderTarget.texture,

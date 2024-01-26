@@ -1,3 +1,4 @@
+import type { Enumify } from '../utils/types';
 import { loadAndSetTexture } from '../renderer/render-utility';
 import type { Material, Texture } from 'three';
 import {
@@ -16,18 +17,20 @@ export const createPreviewMaterial = (): Material => {
   loadAndSetTexture(
     (texture) => (material.map = texture),
     LogoSquareImage,
-    new Color(0.9, 0.9, 0.9)
+    new Color(0.859, 0, 0)
   );
   return material;
 };
 
-export const enum GroundMaterialType {
-  OnlyShadow,
-  Transparent,
-  White,
-  Parquet,
-  Pavement,
-}
+export const GROUND_MATERIAL_TYPES = {
+  ONL_SHADOW: 'OnlyShadow',
+  TRANSPARENT: 'Transparent',
+  WHITE: 'White',
+  PARQUET: 'Parquet',
+  PAVEMENT: 'Pavement',
+} as const;
+
+export type GroundMaterialType = Enumify<typeof GROUND_MATERIAL_TYPES>;
 
 const groundMaterialCache: any = {};
 export const createGroundMaterial = (
@@ -40,22 +43,22 @@ export const createGroundMaterial = (
         material = new MeshStandardMaterial();
         break;
       }
-      case GroundMaterialType.OnlyShadow: {
+      case GROUND_MATERIAL_TYPES.ONL_SHADOW: {
         material = new ShadowMaterial();
         material.opacity = 0.5;
         break;
       }
-      case GroundMaterialType.Transparent: {
+      case GROUND_MATERIAL_TYPES.TRANSPARENT: {
         material = new MeshStandardMaterial();
         material.transparent = true;
         material.opacity = 0;
         break;
       }
-      case GroundMaterialType.White: {
+      case GROUND_MATERIAL_TYPES.WHITE: {
         material = new MeshStandardMaterial();
         break;
       }
-      case GroundMaterialType.Parquet: {
+      case GROUND_MATERIAL_TYPES.PARQUET: {
         const groundMaterial = new MeshPhysicalMaterial();
         loadAndSetTexture(
           (texture) => {
@@ -80,7 +83,7 @@ export const createGroundMaterial = (
         material = groundMaterial;
         break;
       }
-      case GroundMaterialType.Pavement: {
+      case GROUND_MATERIAL_TYPES.PAVEMENT: {
         const groundMaterial = new MeshPhysicalMaterial();
         loadAndSetTexture(
           (texture) => {

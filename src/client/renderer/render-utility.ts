@@ -471,7 +471,7 @@ export const generateMagicSquareDistributedKernelRotations = (
   return noiseTexture;
 };
 
-export class RenderPass {
+export class PassRenderer {
   private _originalClearColor = new Color();
   private _originalClearAlpha: number = 0;
   private _originalAutoClear: boolean = false;
@@ -569,14 +569,14 @@ export class RenderPass {
 }
 
 export class BlurPass {
-  private _renderPass: RenderPass;
+  private _passRenderer: PassRenderer;
   private _blurMaterial: ShaderMaterial;
 
   constructor(
     blurShaderParameters?: ShaderMaterialParameters,
-    parameters?: { renderPass?: RenderPass }
+    parameters?: { passRenderer?: PassRenderer }
   ) {
-    this._renderPass = parameters?.renderPass ?? new RenderPass();
+    this._passRenderer = parameters?.passRenderer ?? new PassRenderer();
     this._blurMaterial = new ShaderMaterial(blurShaderParameters ?? BlurShader);
     this._blurMaterial.depthTest = false;
   }
@@ -596,7 +596,7 @@ export class BlurPass {
     this._blurMaterial.uniforms.rangeMin.value.y = 0;
     this._blurMaterial.uniforms.rangeMax.value.x = uvMax[0];
     this._blurMaterial.uniforms.rangeMax.value.y = 0;
-    this._renderPass.renderScreenSpace(
+    this._passRenderer.renderScreenSpace(
       renderer,
       this._blurMaterial,
       renderTargets[1]
@@ -606,7 +606,7 @@ export class BlurPass {
     this._blurMaterial.uniforms.rangeMin.value.y = uvMin[1];
     this._blurMaterial.uniforms.rangeMax.value.x = 0;
     this._blurMaterial.uniforms.rangeMax.value.y = uvMax[1];
-    this._renderPass.renderScreenSpace(
+    this._passRenderer.renderScreenSpace(
       renderer,
       this._blurMaterial,
       renderTargets[2]

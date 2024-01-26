@@ -1,3 +1,4 @@
+/* eslint-disable complexity */
 import type { Color, MeshPhysicalMaterial } from 'three';
 import type { MaterialData } from './meshConstructor';
 import type { GUI } from 'dat.gui';
@@ -30,7 +31,6 @@ export class MaterialGUI {
     this.updateMaterialPropertiesUI(this.materialId);
   }
 
-  // eslint-disable-next-line complexity
   private updateMaterialPropertiesUI(materialId: string) {
     this.materialId = materialId;
     if (!this.materialFolder) {

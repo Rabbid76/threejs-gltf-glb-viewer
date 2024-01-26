@@ -1,11 +1,20 @@
 import type { DenoisePass } from './../render-utility';
-import { NormalVectorSourceType, DepthValueSourceType } from './pass-utility';
-import { RenderPass } from './../render-utility';
+import type {
+  NormalVectorSourceType,
+  DepthValueSourceType,
+} from './pass-utility';
+import {
+  NORMAL_VECTOR_SOURCE_TYPES,
+  DEPTH_VALUE_SOURCE_TYPES,
+} from './pass-utility';
+import { PassRenderer } from './../render-utility';
 import type { Camera, Texture, WebGLRenderer } from 'three';
 import {
+  Box3,
   DataTexture,
   LinearFilter,
   RepeatWrapping,
+  RGFormat,
   RGBAFormat,
   ShaderMaterial,
   UniformsUtils,
@@ -28,6 +37,7 @@ export interface PoissonDenoisePassParameters {
   lumaPhi: number;
   depthPhi: number;
   normalPhi: number;
+  nvOrientatedSamples?: boolean;
 }
 
 export const defaultPoissonDenoisePassParameters: PoissonDenoisePassParameters =
@@ -38,8 +48,9 @@ export const defaultPoissonDenoisePassParameters: PoissonDenoisePassParameters =
     radiusExponent: 1,
     radius: 5,
     lumaPhi: 10,
-    depthPhi: 2,
-    normalPhi: 4,
+    depthPhi: 0.5,
+    normalPhi: 1,
+    nvOrientatedSamples: false,
   };
 
 export interface PoissonDenoiseParameters {
@@ -47,6 +58,9 @@ export interface PoissonDenoiseParameters {
   normalVectorSourceType?: NormalVectorSourceType;
   depthValueSourceType?: DepthValueSourceType;
   rgInputTexture?: boolean;
+  luminanceType?: string;
+  sampleLuminance?: string;
+  fragmentOutput?: string;
   inputTexture?: Texture;
   depthTexture?: Texture;
   normalTexture?: Texture;
@@ -60,10 +74,9 @@ export class PoissonDenoiseRenderPass implements DenoisePass {
   private _width: number = 0;
   private _height: number = 0;
   private _normalVectorSourceType: NormalVectorSourceType =
-    NormalVectorSourceType.FLOAT_BUFFER_NORMAL;
+    NORMAL_VECTOR_SOURCE_TYPES.FLOAT_BUFFER_NORMAL;
   private _depthValueSourceType: DepthValueSourceType =
-    DepthValueSourceType.NORMAL_VECTOR_ALPHA;
-  private _rgInputTexture: boolean = true;
+    DEPTH_VALUE_SOURCE_TYPES.NORMAL_VECTOR_ALPHA;
   public _inputTexture: Texture | null = null;
   public depthTexture: Texture | null = null;
   public normalTexture: Texture | null = null;
@@ -71,7 +84,12 @@ export class PoissonDenoiseRenderPass implements DenoisePass {
   private _pdMaterial?: ShaderMaterial;
   private _renderTargets: WebGLRenderTarget[] = [];
   private _outputRenderTargetIndex: number = 0;
-  private _renderPass: RenderPass = new RenderPass();
+  private _passRenderer: PassRenderer = new PassRenderer();
+  private _sceneClipBox: Box3 | undefined;
+  private _rgInputTexture: boolean = false;
+  private _luminanceType: string;
+  private _sampleLuminance: string;
+  private _fragmentOutput: string;
 
   public get texture(): Texture | null {
     return this.parameters.iterations > 0 && this._renderTargets.length > 0
@@ -92,14 +110,18 @@ export class PoissonDenoiseRenderPass implements DenoisePass {
     this._height = height;
     this._normalVectorSourceType =
       parameters?.normalVectorSourceType ||
-      NormalVectorSourceType.FLOAT_BUFFER_NORMAL;
+      NORMAL_VECTOR_SOURCE_TYPES.FLOAT_BUFFER_NORMAL;
     this._depthValueSourceType =
       parameters?.depthValueSourceType ||
-      DepthValueSourceType.NORMAL_VECTOR_ALPHA;
-    this._rgInputTexture = parameters?.rgInputTexture || true;
+      DEPTH_VALUE_SOURCE_TYPES.NORMAL_VECTOR_ALPHA;
     this._inputTexture = parameters?.inputTexture || null;
     this.depthTexture = parameters?.depthTexture || null;
     this.normalTexture = parameters?.normalTexture || null;
+    this._rgInputTexture = parameters?.rgInputTexture || false;
+    this._luminanceType = parameters?.luminanceType || 'vec3';
+    this._sampleLuminance = parameters?.sampleLuminance || 'a';
+    this._fragmentOutput =
+      parameters?.fragmentOutput || 'vec4(denoised.xyz, 1.)';
     if (parameters?.poissonDenoisePassParameters) {
       this.parameters = parameters.poissonDenoisePassParameters;
     }
@@ -155,57 +177,84 @@ export class PoissonDenoiseRenderPass implements DenoisePass {
       updateShader = true;
     }
     if (updateShader) {
-      this._pdMaterial.defines.SAMPLES = this.parameters.samples;
-      this._pdMaterial.defines.SAMPLE_VECTORS =
-        generatePdSamplePointInitializer(
-          this.parameters.samples,
-          this.parameters.rings,
-          this.parameters.radiusExponent
-        );
-      this._pdMaterial.defines.NORMAL_VECTOR_TYPE =
-        this._normalVectorSourceType ===
-        NormalVectorSourceType.FLOAT_BUFFER_NORMAL
-          ? 2
-          : 1;
-      this._pdMaterial.defines.DEPTH_VALUE_SOURCE =
-        this._depthValueSourceType === DepthValueSourceType.NORMAL_VECTOR_ALPHA
-          ? 1
-          : 0;
-      this._pdMaterial.needsUpdate = true;
-      this._pdMaterial.defines.LUMINANCE_TYPE = 'vec3';
-      this._pdMaterial.defines.SAMPLE_LUMINANCE = 'a';
+      this._updateShader(this._pdMaterial);
     }
+    this._updateUniforms(this._pdMaterial, camera, updateShader);
+    return this._pdMaterial;
+  }
+
+  private _updateShader(pdMaterial: ShaderMaterial): void {
+    pdMaterial.defines.SAMPLES = this.parameters.samples;
+    pdMaterial.defines.SAMPLE_VECTORS = generatePdSamplePointInitializer(
+      this.parameters.samples,
+      this.parameters.rings,
+      this.parameters.radiusExponent
+    );
+    pdMaterial.defines.SAMPLE_DISTRIBUTION = this.parameters.nvOrientatedSamples
+      ? 1
+      : 0;
+    pdMaterial.defines.NORMAL_VECTOR_TYPE =
+      this._normalVectorSourceType ===
+      NORMAL_VECTOR_SOURCE_TYPES.FLOAT_BUFFER_NORMAL
+        ? 2
+        : 1;
+    pdMaterial.defines.DEPTH_VALUE_SOURCE =
+      this._depthValueSourceType ===
+      DEPTH_VALUE_SOURCE_TYPES.NORMAL_VECTOR_ALPHA
+        ? 1
+        : 0;
+    pdMaterial.needsUpdate = true;
+    pdMaterial.defines.LUMINANCE_TYPE = this._luminanceType;
+    pdMaterial.defines.SAMPLE_LUMINANCE = this._sampleLuminance;
+    pdMaterial.defines.FRAGMENT_OUTPUT = this._fragmentOutput;
+    pdMaterial.defines.SCENE_CLIP_BOX = this._sceneClipBox ? 1 : 0;
+    pdMaterial.needsUpdate = true;
+  }
+
+  private _updateUniforms(
+    pdMaterial: ShaderMaterial,
+    camera: Camera,
+    updateShader: boolean
+  ): void {
     const depthTexture =
-      this._depthValueSourceType === DepthValueSourceType.NORMAL_VECTOR_ALPHA
+      this._depthValueSourceType ===
+      DEPTH_VALUE_SOURCE_TYPES.NORMAL_VECTOR_ALPHA
         ? this.normalTexture
         : this.depthTexture;
-    this._pdMaterial.uniforms.tDiffuse.value = this._inputTexture as Texture;
-    this._pdMaterial.uniforms.tNormal.value = this.normalTexture as Texture;
-    this._pdMaterial.uniforms.tDepth.value = depthTexture;
-    this._pdMaterial.uniforms.resolution.value.set(this._width, this._height);
-    this._pdMaterial.uniforms.cameraProjectionMatrix.value.copy(
+    pdMaterial.uniforms.tDiffuse.value = this._inputTexture as Texture;
+    pdMaterial.uniforms.tNormal.value = this.normalTexture as Texture;
+    pdMaterial.uniforms.tDepth.value = depthTexture;
+    pdMaterial.uniforms.resolution.value.set(this._width, this._height);
+    pdMaterial.uniforms.cameraProjectionMatrix.value.copy(
       camera.projectionMatrix
     );
-    this._pdMaterial.uniforms.cameraProjectionMatrixInverse.value.copy(
+    pdMaterial.uniforms.cameraProjectionMatrixInverse.value.copy(
       camera.projectionMatrixInverse
     );
-    this._pdMaterial.uniforms.lumaPhi.value = this.parameters.lumaPhi;
-    this._pdMaterial.uniforms.depthPhi.value = this.parameters.depthPhi;
-    this._pdMaterial.uniforms.normalPhi.value = this.parameters.normalPhi;
-    this._pdMaterial.uniforms.radius.value = this.parameters.radius;
-    this._pdMaterial.uniforms.radiusExponent.value =
-      this.parameters.radiusExponent;
-    return this._pdMaterial;
+    pdMaterial.uniforms.cameraWorldMatrix.value.copy(camera.matrixWorld);
+    if (updateShader) {
+      pdMaterial.uniforms.lumaPhi.value = this.parameters.lumaPhi;
+      pdMaterial.uniforms.depthPhi.value = this.parameters.depthPhi;
+      pdMaterial.uniforms.normalPhi.value = this.parameters.normalPhi;
+      pdMaterial.uniforms.radius.value = this.parameters.radius;
+      pdMaterial.uniforms.radiusExponent.value = this.parameters.radiusExponent;
+      if (this._sceneClipBox) {
+        pdMaterial.uniforms.sceneBoxMin.value.copy(this._sceneClipBox.min);
+        pdMaterial.uniforms.sceneBoxMax.value.copy(this._sceneClipBox.max);
+      }
+    }
   }
 
   private _getRenderTargets(): WebGLRenderTarget[] {
     if (this._renderTargets.length < 2) {
       this._renderTargets = [
         new WebGLRenderTarget(this._width, this._height, {
+          format: this._rgInputTexture ? RGFormat : RGBAFormat,
           magFilter: LinearFilter,
           minFilter: LinearFilter,
         }),
         new WebGLRenderTarget(this._width, this._height, {
+          format: this._rgInputTexture ? RGFormat : RGBAFormat,
           magFilter: LinearFilter,
           minFilter: LinearFilter,
         }),
@@ -224,6 +273,11 @@ export class PoissonDenoiseRenderPass implements DenoisePass {
     this._width = width;
     this._height = height;
     this._renderTargets.forEach((target) => target.setSize(width, height));
+    this.needsUpdate = true;
+  }
+
+  public updateBounds(sceneClipBox: Box3) {
+    this._sceneClipBox = new Box3().copy(sceneClipBox);
     this.needsUpdate = true;
   }
 
@@ -262,7 +316,7 @@ export class PoissonDenoiseRenderPass implements DenoisePass {
       pdMaterial.uniforms.tDiffuse.value =
         i === 0 ? this._inputTexture : inputRenderTarget.texture;
       pdMaterial.uniforms.index.value = i;
-      this._renderPass.renderScreenSpace(
+      this._passRenderer.renderScreenSpace(
         renderer,
         pdMaterial,
         outputRenderTarget,
@@ -270,5 +324,21 @@ export class PoissonDenoiseRenderPass implements DenoisePass {
         1.0
       );
     }
+  }
+
+  public renderToTarget(
+    renderer: WebGLRenderer,
+    camera: Camera,
+    renderTarget: WebGLRenderTarget
+  ) {
+    const pdMaterial = this._getMaterial(camera, this.needsUpdate);
+    this.needsUpdate = false;
+    this._passRenderer.renderScreenSpace(
+      renderer,
+      pdMaterial,
+      renderTarget,
+      0xffffff,
+      1.0
+    );
   }
 }

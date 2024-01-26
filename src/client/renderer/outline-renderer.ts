@@ -1,6 +1,5 @@
-import type { GBufferRenderTargets } from './gbuffer-render-target';
-//import { OutlinePass } from 'three/examples/jsm/postprocessing/OutlinePass.js';
-import { OutlinePass } from './outline-pass';
+import type { RenderPassManager } from './render-pass-manager';
+import type { OutlinePass } from './pass/outline-pass';
 import type { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer';
 import type {
   Camera,
@@ -9,7 +8,6 @@ import type {
   PerspectiveCamera,
   Scene,
 } from 'three';
-import { Vector2 } from 'three';
 
 export interface OutlineParameters {
   [key: string]: any;
@@ -24,7 +22,6 @@ export interface OutlineParameters {
 }
 
 export interface OutlineRendererParameters {
-  gBufferRenderTarget?: GBufferRenderTargets;
   enabled?: boolean;
   edgeStrength?: number;
   edgeGlow?: number;
@@ -35,29 +32,27 @@ export interface OutlineRendererParameters {
   hiddenEdgeColor?: ColorRepresentation;
 }
 
-export class OutLineRenderer {
+export class OutlineRenderer {
   public parameters: OutlineParameters;
-  private _width: number = 0;
-  private _height: number = 0;
+  private _renderPassManager: RenderPassManager;
   private _effectComposer: EffectComposer | null = null;
-  private _gBufferRenderTarget?: GBufferRenderTargets;
-  public outlinePass: OutlinePass | null = null;
   public outlinePassActivated = false;
 
   get isOutlinePassActivated(): boolean {
     return this.outlinePassActivated;
   }
 
+  get outlinePass(): OutlinePass | null {
+    return this._renderPassManager.outlinePass;
+  }
+
   constructor(
+    renderPassManager: RenderPassManager,
     _effectComposer: EffectComposer | null,
-    width: number,
-    height: number,
     parameters: OutlineRendererParameters
   ) {
+    this._renderPassManager = renderPassManager;
     this._effectComposer = _effectComposer;
-    this._gBufferRenderTarget = parameters?.gBufferRenderTarget;
-    this._width = width;
-    this._height = height;
     this.parameters = {
       enabled: true,
       edgeStrength: 2.0,
@@ -69,16 +64,6 @@ export class OutLineRenderer {
       hiddenEdgeColor: 0xffffff, // 0xdb0000,
       ...parameters,
     };
-  }
-
-  public dispose(): void {
-    this.outlinePass?.dispose();
-  }
-
-  public setSize(width: number, height: number): void {
-    this._width = width;
-    this._height = height;
-    this.outlinePass?.setSize(width, height);
   }
 
   public updateParameters(parameters: OutlineParameters): void {
@@ -120,21 +105,11 @@ export class OutLineRenderer {
       return;
     }
     if (needsUpdate || !this.outlinePass) {
-      this.outlinePass = new OutlinePass(
-        new Vector2(this._width, this._height),
-        scene,
-        camera,
-        [],
-        {
-          downSampleRatio: 2,
-          edgeDetectionFxaa: true,
-          gBufferRenderTarget: this._gBufferRenderTarget,
-        }
-      );
+      this._renderPassManager.createOutlinePass();
     }
     this.applyParameters();
     if (this._effectComposer) {
-      this._effectComposer.addPass(this.outlinePass);
+      this._effectComposer.addPass(this.outlinePass as OutlinePass);
     }
     this.outlinePassActivated = true;
   }

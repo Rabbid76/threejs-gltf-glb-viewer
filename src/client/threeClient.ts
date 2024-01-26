@@ -1,7 +1,7 @@
-import { setupDragDrop } from './util/drag_target';
+import { setupDragDrop } from './utils/drag_target';
 import { glbMap } from './glbMap';
 import { SceneManager } from './scene/sceneManager';
-import { QualityLevel } from './renderer/scene-renderer';
+import { QUALITY_LEVELS } from './renderer/scene-renderer';
 import { SceneRendererGUI } from './renderer/scene-renderer-gui';
 import { MaterialGUI } from './scene/material-gui';
 import { LightSourcesGUI } from './scene/lightSources';
@@ -9,7 +9,8 @@ import type { SkyEnvironment } from './scene/skyEnvironment';
 import { SkyEnvironmentGUI } from './scene/skyEnvironment';
 import type { BackgroundEnvironment } from './renderer/background-environment';
 import { BackgroundEnvironmentGUI } from './renderer/background-environment';
-import { GroundMaterialType } from './scene/materials';
+import type { GroundMaterialType } from './scene/materials';
+import { GROUND_MATERIAL_TYPES } from './scene/materials';
 import type { Group } from 'three';
 import { Vector2, WebGLRenderer } from 'three';
 import { CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
@@ -101,16 +102,16 @@ const loadResource = (resourceName: string, resource: string) => {
 };
 
 const setGroundMaterial = () => {
-  let groundMaterial: GroundMaterialType = GroundMaterialType.Transparent;
+  let groundMaterial: GroundMaterialType = GROUND_MATERIAL_TYPES.TRANSPARENT;
   switch (generalProperties.groundMaterial.toLocaleLowerCase()) {
     default:
-      groundMaterial = GroundMaterialType.Transparent;
+      groundMaterial = GROUND_MATERIAL_TYPES.TRANSPARENT;
       break;
     case 'parquet':
-      groundMaterial = GroundMaterialType.Parquet;
+      groundMaterial = GROUND_MATERIAL_TYPES.PARQUET;
       break;
     case 'pavement':
-      groundMaterial = GroundMaterialType.Pavement;
+      groundMaterial = GROUND_MATERIAL_TYPES.PAVEMENT;
       break;
   }
   renderScene.setGroundMaterial(groundMaterial);
@@ -152,7 +153,7 @@ const generalProperties = {
 
 const renderScene = new SceneManager(renderer, labelRenderer);
 renderScene.sceneRenderer.setQualityLevel(
-  isMobile ? QualityLevel.LOW : QualityLevel.HIGHEST
+  isMobile ? QUALITY_LEVELS.LOW : QUALITY_LEVELS.HIGHEST
 );
 renderScene.createControls();
 renderScene.setEnvironment();

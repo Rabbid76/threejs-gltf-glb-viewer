@@ -1,27 +1,27 @@
-import type { QualityMap } from '../renderer/scene-renderer';
-import { QualityLevel } from '../renderer/scene-renderer';
-import { ShadowBlurType } from '../renderer/shadow-and-ao-pass';
-import { AoAlgorithms } from '../renderer/pass/ao-pass';
+import type { QualityMap, QualityLevel } from '../renderer/scene-renderer';
+import { QUALITY_LEVELS } from '../renderer/scene-renderer';
+import { SHADOW_BLUR_TYPES } from '../renderer/pass/shadow-and-ao-pass';
+import { AO_ALGORITHMS } from '../renderer/pass/ao-pass';
 
 const noEffectsSuspension: Record<string, any> = {
   effectSuspendFrames: 0,
   effectFadeInFrames: 0,
   suspendGroundReflection: false,
-  shadowOnCameraChange: ShadowBlurType.FULL,
+  shadowOnCameraChange: SHADOW_BLUR_TYPES.FULL,
 };
 
 const partialEffectsSuspension: Record<string, any> = {
   effectSuspendFrames: 5,
   effectFadeInFrames: 5,
   suspendGroundReflection: false,
-  shadowOnCameraChange: ShadowBlurType.POISSON,
+  shadowOnCameraChange: SHADOW_BLUR_TYPES.POISSON,
 };
 
 const fullEffectsSuspension: Record<string, any> = {
   effectSuspendFrames: 5,
   effectFadeInFrames: 5,
   suspendGroundReflection: true,
-  shadowOnCameraChange: ShadowBlurType.HARD,
+  shadowOnCameraChange: SHADOW_BLUR_TYPES.HARD,
 };
 
 const shAndAoPassParameters = {
@@ -31,7 +31,7 @@ const shAndAoPassParameters = {
   aoIntensity: 1.0,
   shadowIntensity: 1.0,
   ao: {
-    algorithm: AoAlgorithms.GTAO,
+    algorithm: AO_ALGORITHMS.GTAO,
     samples: 16,
     radius: 0.5,
     distanceExponent: 2,
@@ -54,7 +54,7 @@ const screenSpaceShadowMapParameters = {
 
 export const defaultQualityLevels: QualityMap = new Map<QualityLevel, any>([
   [
-    QualityLevel.HIGHEST,
+    QUALITY_LEVELS.HIGHEST,
     {
       ...noEffectsSuspension,
       shAndAoPassParameters,
@@ -68,7 +68,7 @@ export const defaultQualityLevels: QualityMap = new Map<QualityLevel, any>([
     },
   ],
   [
-    QualityLevel.HIGH,
+    QUALITY_LEVELS.HIGH,
     {
       ...partialEffectsSuspension,
       shAndAoPassParameters,
@@ -82,7 +82,7 @@ export const defaultQualityLevels: QualityMap = new Map<QualityLevel, any>([
     },
   ],
   [
-    QualityLevel.MEDIUM,
+    QUALITY_LEVELS.MEDIUM,
     {
       ...fullEffectsSuspension,
       shAndAoPassParameters,
@@ -96,7 +96,7 @@ export const defaultQualityLevels: QualityMap = new Map<QualityLevel, any>([
     },
   ],
   [
-    QualityLevel.LOW,
+    QUALITY_LEVELS.LOW,
     {
       shAndAoPassParameters: {
         enabled: false,

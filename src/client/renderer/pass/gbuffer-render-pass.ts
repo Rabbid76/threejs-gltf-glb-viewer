@@ -1,15 +1,15 @@
-import { RenderPass } from './render-utility';
-import type { CopyTransformMaterialParameters } from './shader-utility';
+import { RenderPass } from './render-pass';
+import type { RenderPassManager } from '../render-pass-manager';
+import type { CopyTransformMaterialParameters } from '../shader-utility';
 import {
   ALPHA_RGBA,
   ALPHA_TRANSFORM,
   CopyTransformMaterial,
   DEFAULT_UV_TRANSFORM,
-} from './shader-utility';
-import type { RenderCacheManager } from './render-cache';
-import { ObjectRenderCache } from './render-cache';
-import type { GBufferNormalDepthMaterial } from './materials/normal-depth-material';
-import { NormalAndDepthRenderMaterial } from './materials/normal-depth-material';
+} from '../shader-utility';
+import { ObjectRenderCache } from '../render-cache';
+import type { GBufferNormalDepthMaterial } from '../materials/normal-depth-material';
+import { NormalAndDepthRenderMaterial } from '../materials/normal-depth-material';
 import type {
   Camera,
   MagnificationTextureFilter,
@@ -54,16 +54,14 @@ export interface GBufferRenderTargetsParameters {
   height?: number;
   samples?: number;
   shared?: boolean;
-  renderPass?: RenderPass;
   depthNormalScale?: number;
 }
 
-export class GBufferRenderTargets implements GBufferTextures {
+export class GBufferRenderPass extends RenderPass implements GBufferTextures {
   public parameters: GBufferParameters;
   public readonly floatRgbNormalAlphaDepth: boolean = false;
   public readonly linearDepth: boolean = false;
   public copyToSeparateDepthBuffer: boolean = false;
-  private _renderCacheManager?: RenderCacheManager;
   private _gBufferMaterialCache?: GBufferMaterialCache;
   private _targetMinificationTextureFilter: TextureFilter;
   private _targetMagnificationTextureFilter: MagnificationTextureFilter;
@@ -73,10 +71,10 @@ export class GBufferRenderTargets implements GBufferTextures {
   private _gBufferRenderMaterial?: GBufferNormalDepthMaterial;
   private _depthNormalRenderTarget?: WebGLRenderTarget;
   private _separateDeptRenderTarget?: WebGLRenderTarget;
-  private _renderPass: RenderPass;
   private _copyMaterial?: CopyTransformMaterial;
   private _shared: boolean;
   public needsUpdate: boolean = true;
+  public drawGround: boolean = true;
 
   public set groundDepthWrite(value: boolean) {
     if (this._gBufferMaterialCache) {
@@ -170,14 +168,14 @@ export class GBufferRenderTargets implements GBufferTextures {
   }
 
   constructor(
-    renderCacheManager?: RenderCacheManager,
+    renderPassManager: RenderPassManager,
     parameters?: GBufferRenderTargetsParameters
   ) {
+    super(renderPassManager);
     this.floatRgbNormalAlphaDepth = parameters?.capabilities?.isWebGL2 ?? false;
-    this._renderCacheManager = renderCacheManager;
-    if (this._renderCacheManager) {
+    if (this.renderCacheManager) {
       this._gBufferMaterialCache = new GBufferMaterialCache();
-      this._renderCacheManager.registerCache(this, this._gBufferMaterialCache);
+      this.renderCacheManager.registerCache(this, this._gBufferMaterialCache);
     }
     this.parameters = {
       depthNormalScale: parameters?.depthNormalScale ?? 1,
@@ -190,10 +188,10 @@ export class GBufferRenderTargets implements GBufferTextures {
     this._height = parameters?.height ?? 1024;
     this._samples = parameters?.samples ?? 0;
     this._shared = parameters?.shared ?? false;
-    this._renderPass = parameters?.renderPass ?? new RenderPass();
   }
 
   public dispose() {
+    super.dispose();
     this._gBufferRenderMaterial?.dispose();
     this._depthNormalRenderTarget?.dispose();
   }
@@ -207,18 +205,20 @@ export class GBufferRenderTargets implements GBufferTextures {
     );
   }
 
-  public render(renderer: WebGLRenderer, scene: Scene, camera: Camera): void {
+  public renderPass(renderer: WebGLRenderer): void {
     if (this._shared && !this.needsUpdate) {
       return;
     }
     this.needsUpdate = false;
-    if (this._renderCacheManager) {
-      this._renderCacheManager.render(this, scene, () => {
-        this._renderGBuffer(renderer, scene, camera);
+    this.renderPassManager.setGroundVisibility(this.drawGround);
+    if (this.renderCacheManager) {
+      this.renderCacheManager.render(this, this.scene, () => {
+        this._renderGBuffer(renderer, this.scene, this.camera);
       });
     } else {
-      this._renderGBuffer(renderer, scene, camera);
+      this._renderGBuffer(renderer, this.scene, this.camera);
     }
+    this.renderPassManager.setGroundVisibility(false);
     if (this.floatRgbNormalAlphaDepth && this.copyToSeparateDepthBuffer) {
       this._copyDepthToSeparateDepthTexture(
         renderer,
@@ -232,7 +232,7 @@ export class GBufferRenderTargets implements GBufferTextures {
     scene: Scene,
     camera: Camera
   ) {
-    this._renderPass.renderWithOverrideMaterial(
+    this.passRenderer.renderWithOverrideMaterial(
       renderer,
       scene,
       camera,
@@ -254,7 +254,7 @@ export class GBufferRenderTargets implements GBufferTextures {
     renderer: WebGLRenderer,
     source: WebGLRenderTarget
   ) {
-    this._renderPass.renderScreenSpace(
+    this.passRenderer.renderScreenSpace(
       renderer,
       this.getCopyMaterial({
         texture: source.texture,

@@ -47,12 +47,17 @@ uniform sampler2D tNoise;
 uniform vec2 resolution;
 uniform mat4 cameraProjectionMatrix;
 uniform mat4 cameraProjectionMatrixInverse;
+uniform mat4 cameraWorldMatrix;
 uniform float lumaPhi;
 uniform float depthPhi;
 uniform float normalPhi;
 uniform float radius;
 uniform float radiusExponent;
 uniform int index;
+#if SCENE_CLIP_BOX == 1
+    uniform vec3 sceneBoxMin;
+    uniform vec3 sceneBoxMax;
+#endif
 
 #include <common>
 #include <packing>
@@ -66,7 +71,7 @@ uniform int index;
 #endif
 
 #ifndef FRAGMENT_OUTPUT
-#define FRAGMENT_OUTPUT vec4(denoised, 1.)
+#define FRAGMENT_OUTPUT vec4(vec3(denoised), 1.)
 #endif
 
 LUMINANCE_TYPE getLuminance(const in vec3 a) {
@@ -161,29 +166,45 @@ void main() {
     vec3 center = texel.rgb;
     vec3 viewPos = getViewPosition(vUv, depth);
 
+    #if SCENE_CLIP_BOX == 1
+      vec3 worldPos = (cameraWorldMatrix * vec4(viewPos, 1.0)).xyz;
+          float boxDistance = length(max(vec3(0.0), max(sceneBoxMin - worldPos, worldPos - sceneBoxMax)));
+      if (boxDistance > radius * 2.) {
+        discard;
+        return;
+      }
+		#endif
+
     vec2 noiseResolution = vec2(textureSize(tNoise, 0));
     vec2 noiseUv = vUv * resolution / noiseResolution;
     vec4 noiseTexel = textureLod(tNoise, noiseUv, 0.0);
     vec2 noiseVec = vec2(sin(noiseTexel[index % 4] * 2. * PI), cos(noiseTexel[index % 4] * 2. * PI));
-    mat2 rotationMatrix = mat2(noiseVec.x, -noiseVec.y, noiseVec.x, noiseVec.y);
+    #if SAMPLE_DISTRIBUTION == 1
+      vec3 randomVec = normalize(vec3(noiseVec.xy, 0.));
+      vec3 tangent = normalize(randomVec - viewNormal * dot(randomVec, viewNormal));
+      vec3 bitangent = cross(viewNormal, tangent);
+      mat3 kernelMatrix = mat3(tangent, bitangent, viewNormal);
+    #else
+      mat2 rotationMatrix = mat2(noiseVec.x, -noiseVec.y, noiseVec.x, noiseVec.y);
+    #endif
 
     LUMINANCE_TYPE totalWeight = LUMINANCE_TYPE(1.);
     vec3 denoised = texel.rgb;
     for (int i = 0; i < SAMPLES; i++) {
         vec3 sampleDir = poissonDisk[i];
-    #if SCREEN_SPACE_RADIUS == 1
-        vec2 offset = rotationMatrix * (sampleDir.xy * (1. + sampleDir.z * (radius - 1.)) / resolution);
-        vec2 sampleUv = vUv + offset;
-    #else
-        vec3 offsetViewPos = viewPos + vec3(sampleDir.xy, 0.) * sampleDir.z * radius;
+    #if SAMPLE_DISTRIBUTION == 1
+        vec3 offsetViewPos = viewPos + normalize(kernelMatrix * vec3(sampleDir.xy, 0.)) * sampleDir.z * radius;
         vec4 samplePointNDC = cameraProjectionMatrix * vec4(offsetViewPos, 1.0); 
         vec2 sampleUv = (samplePointNDC.xy / samplePointNDC.w * 0.5 + 0.5);
+    #else
+        vec2 offset = rotationMatrix * (sampleDir.xy * (1. + sampleDir.z * (radius - 1.)) / resolution);
+        vec2 sampleUv = vUv + offset;
     #endif
         denoiseSample(center, viewNormal, viewPos, sampleUv, denoised, totalWeight);
     }
 
     denoised /= totalWeight + 1.0 - step(0.0, totalWeight);
-    gl_FragColor = vec4(denoised, 1.);
+    gl_FragColor = FRAGMENT_OUTPUT;
 }`;
 
 export const poissonDenoiseShader = {
@@ -191,11 +212,13 @@ export const poissonDenoiseShader = {
   defines: {
     SAMPLES: 16,
     SAMPLE_VECTORS: generatePdSamplePointInitializer(16, 2, 1),
-    SCREEN_SPACE_RADIUS: 1,
-    NORMAL_VECTOR_TYPE: 1,
+    NV_ALIGNED_SAMPLES: 0,
+    SAMPLE_DISTRIBUTION: 0,
     DEPTH_VALUE_SOURCE: 0,
     LUMINANCE_TYPE: 'float',
     SAMPLE_LUMINANCE: 'dot(vec3(0.2125, 0.7154, 0.0721), a)',
+    SCENE_CLIP_BOX: 0,
+    FRAGMENT_OUTPUT: 'vec4(vec3(denoised), 1.)',
   },
   uniforms: {
     tDiffuse: { value: null as Texture | null },
@@ -205,12 +228,15 @@ export const poissonDenoiseShader = {
     resolution: { value: new Vector2() },
     cameraProjectionMatrix: { value: new Matrix4() },
     cameraProjectionMatrixInverse: { value: new Matrix4() },
+    cameraWorldMatrix: { value: new Matrix4() },
     lumaPhi: { value: 5 },
     depthPhi: { value: 5 },
     normalPhi: { value: 5 },
     radius: { value: 10 },
     radiusExponent: { value: 1 },
     index: { value: 0 },
+    sceneBoxMin: { value: new Vector3(-1, -1, -1) },
+    sceneBoxMax: { value: new Vector3(1, 1, 1) },
   },
   vertexShader: poissonDenoiseVertexShader,
   fragmentShader: poissonDenoiseFragmentShader,

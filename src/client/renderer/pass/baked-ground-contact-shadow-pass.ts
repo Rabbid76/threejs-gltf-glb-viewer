@@ -1,9 +1,10 @@
-import type { SceneVolume, RenderPass } from './render-utility';
-import { BlurPass } from './render-utility';
-import { BlurShader } from './shader-utility';
-import type { RenderCacheManager } from './render-cache';
-import { VisibilityRenderCache } from './render-cache';
-import { ShadowGroundPlane } from './objects/shadow-ground-plane';
+import type { SceneVolume } from '../render-utility';
+import { BlurPass } from '../render-utility';
+import { BlurShader } from '../shader-utility';
+import { VisibilityRenderCache } from '../render-cache';
+import { ShadowGroundPlane } from '../objects/shadow-ground-plane';
+import { RenderPass } from './render-pass';
+import type { RenderPassManager } from '../render-pass-manager';
 import type {
   Group,
   Layers,
@@ -39,8 +40,6 @@ export interface BakedGroundContactShadowParameters {
 }
 
 export interface BakedGroundContactShadowConstructorParameters {
-  renderPass?: RenderPass;
-  renderCacheManager?: RenderCacheManager;
   sharedShadowGroundPlane?: ShadowGroundPlane;
   shadowMapSize?: number;
   enabled?: boolean;
@@ -71,12 +70,11 @@ const castGroundContactShadow = (object: any): boolean => {
   return !material.transparent || material.opacity > 0.5;
 };
 
-export class BakedGroundContactShadow {
+export class BakedGroundContactShadowPass extends RenderPass {
   public static addTestMesh: boolean = false;
   public shadowMapSize: number;
   public parameters: BakedGroundContactShadowParameters;
   private _renderer: WebGLRenderer;
-  private _renderCacheManager?: RenderCacheManager;
   public needsUpdate: boolean = true;
   public noNeedOfUpdateCount = 0;
   private _blurScale: number = 1;
@@ -107,28 +105,27 @@ export class BakedGroundContactShadow {
   }
 
   constructor(
+    renderPassManager: RenderPassManager,
     renderer: WebGLRenderer,
     groundGroup: Group,
     parameters: BakedGroundContactShadowConstructorParameters
   ) {
+    super(renderPassManager);
     this._groundGroup = groundGroup;
     this.shadowMapSize = parameters.shadowMapSize ?? 2048;
     this.parameters = this._getDefaultParameters(parameters);
     this._groundShadowFar = this.parameters.cameraFar;
     this._renderer = renderer;
-    this._renderCacheManager = parameters?.renderCacheManager;
-    if (this._renderCacheManager) {
-      this._renderCacheManager.registerCache(
-        this,
-        new VisibilityRenderCache((object: any) => {
-          return (
-            (object.isMesh && !castGroundContactShadow(object)) ||
-            (object.name !== undefined &&
-              ['Ground', 'Floor'].includes(object.name))
-          );
-        })
-      );
-    }
+    this.renderCacheManager?.registerCache(
+      this,
+      new VisibilityRenderCache((object: any) => {
+        return (
+          (object.isMesh && !castGroundContactShadow(object)) ||
+          (object.name !== undefined &&
+            ['Ground', 'Floor'].includes(object.name))
+        );
+      })
+    );
     this.renderTarget = new WebGLRenderTarget(
       this.shadowMapSize,
       this.shadowMapSize
@@ -171,7 +168,10 @@ export class BakedGroundContactShadow {
     this._depthMaterial.side = DoubleSide;
     this._depthMaterial.depthTest = true;
     this._depthMaterial.depthWrite = true;
-    this._blurPass = new BlurPass(BlurShader, parameters);
+    this._blurPass = new BlurPass(BlurShader, {
+      ...parameters,
+      passRenderer: this.renderPassManager.passRenderer,
+    });
     this.updatePlaneAndShadowCamera();
   }
 
@@ -281,10 +281,10 @@ export class BakedGroundContactShadow {
     this.shadowGroundPlane.setVisibilityLayers(visible);
   }
 
-  public render(scene: Scene): void {
+  public renderPass(_renderer: WebGLRenderer): void {
     this._groundContactCamera.updateCameraHelper(
       this.parameters.cameraHelper,
-      scene
+      this.scene
     );
     if (!this.parameters.enabled) {
       return;
@@ -317,7 +317,7 @@ export class BakedGroundContactShadow {
     this._groundContactCamera.setCameraHelperVisibility(false);
 
     if (this.noNeedOfUpdateCount === 0) {
-      this._renderGroundContact(scene);
+      this._renderGroundContact(this.scene);
       this._renderBlur();
     } else if (this.noNeedOfUpdateCount === 1) {
       this._renderBlur();
@@ -354,8 +354,8 @@ export class BakedGroundContactShadow {
     if (this.parameters.softLayers) {
       this._groundContactCamera.layers.mask = this.parameters.softLayers.mask;
     }
-    if (this._renderCacheManager) {
-      this._renderCacheManager.render(this, scene, () => {
+    if (this.renderCacheManager) {
+      this.renderCacheManager.render(this, scene, () => {
         this._renderer.render(scene, this._groundContactCamera);
       });
     } else {

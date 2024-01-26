@@ -1,3 +1,4 @@
+import type { Enumify } from '../utils/types';
 import type {
   Blending,
   BlendingDstFactor,
@@ -115,10 +116,12 @@ export const interpolationMatrix = (r: number, g: number, b: number, a: number):
   );
 };
 
-export enum CopyMaterialBlendMode {
-  DEFAULT,
-  ADDITIVE,
-}
+export const COLOR_COPY_BLEND_MODES = {
+  DEFAULT: 'default',
+  ADDITIVE: 'additive',
+} as const;
+
+export type CopyMaterialBlendMode = Enumify<typeof COLOR_COPY_BLEND_MODES>;
 
 export interface CopyTransformMaterialParameters {
   texture?: Texture | null;
@@ -138,10 +141,10 @@ export interface CopyTransformMaterialParameters {
 export class CopyTransformMaterial extends ShaderMaterial {
   constructor(
     parameters?: CopyTransformMaterialParameters,
-    copyBlendMode: CopyMaterialBlendMode = CopyMaterialBlendMode.ADDITIVE
+    copyBlendMode: CopyMaterialBlendMode = COLOR_COPY_BLEND_MODES.ADDITIVE
   ) {
     const blendingParameters =
-      copyBlendMode === CopyMaterialBlendMode.ADDITIVE
+      copyBlendMode === COLOR_COPY_BLEND_MODES.ADDITIVE
         ? {
             blendSrc: DstColorFactor,
             blendDst: ZeroFactor,

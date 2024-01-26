@@ -1,8 +1,6 @@
-import type { GBufferRenderTargets } from './gbuffer-render-target';
-import {
-  Pass,
-  FullScreenQuad,
-} from 'three/examples/jsm/postprocessing/Pass.js';
+import { RenderPass } from './render-pass';
+import type { RenderPassManager } from '../render-pass-manager';
+import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js';
 import { CopyShader } from 'three/examples/jsm/shaders/CopyShader.js';
 import { FXAAShader } from 'three/examples/jsm/shaders/FXAAShader';
 import type {
@@ -18,9 +16,7 @@ import {
   Color,
   DoubleSide,
   Matrix4,
-  MeshDepthMaterial,
   NoBlending,
-  RGBADepthPacking,
   ShaderMaterial,
   UniformsUtils,
   Vector2,
@@ -29,15 +25,13 @@ import {
 } from 'three';
 
 export interface OutlinePassParameters {
-  gBufferRenderTarget?: GBufferRenderTargets;
   downSampleRatio?: number;
   edgeDetectionFxaa?: boolean;
 }
 
-export class OutlinePass extends Pass {
+export class OutlinePass extends RenderPass {
   public static BlurDirectionX = new Vector2(1.0, 0.0);
   public static BlurDirectionY = new Vector2(0.0, 1.0);
-  private _gBufferRenderTarget?: GBufferRenderTargets;
   public renderScene: Scene;
   public renderCamera: Camera;
   public selectedObjects: Object3D[];
@@ -54,11 +48,9 @@ export class OutlinePass extends Pass {
   public _visibilityCache: Map<Object3D, boolean>;
   public resolution: Vector2;
   public renderTargetMaskBuffer: WebGLRenderTarget;
-  public depthMaterial?: MeshDepthMaterial;
   public prepareMaskMaterial: ShaderMaterial;
   public renderTargetFxaaBuffer?: WebGLRenderTarget;
   public fxaaRenderMaterial?: ShaderMaterial;
-  public renderTargetDepthBuffer?: WebGLRenderTarget;
   public renderTargetMaskDownSampleBuffer: WebGLRenderTarget;
   public renderTargetBlurBuffer1: WebGLRenderTarget;
   public renderTargetBlurBuffer2: WebGLRenderTarget;
@@ -70,22 +62,23 @@ export class OutlinePass extends Pass {
   public overlayMaterial: ShaderMaterial;
   public copyUniforms: any;
   public materialCopy: ShaderMaterial;
-  public _oldClearColor: Color;
+  public oldClearColor: Color;
   public oldClearAlpha: number;
   public fsQuad: FullScreenQuad;
   public tempPulseColor1: Color;
   public tempPulseColor2: Color;
   public textureMatrix: Matrix4;
+  public clearBackground: boolean = false;
 
   constructor(
+    renderPassManager: RenderPassManager,
     resolution: Vector2,
     scene: Scene,
     camera: Camera,
     selectedObjects: Object3D[],
     parameters?: OutlinePassParameters
   ) {
-    super();
-    this._gBufferRenderTarget = parameters?.gBufferRenderTarget;
+    super(renderPassManager);
 
     this.renderScene = scene;
     this.renderCamera = camera;
@@ -117,30 +110,14 @@ export class OutlinePass extends Pass {
     this.renderTargetMaskBuffer.texture.name = 'OutlinePass.mask';
     this.renderTargetMaskBuffer.texture.generateMipmaps = false;
 
-    if (!this._gBufferRenderTarget) {
-      this.depthMaterial = new MeshDepthMaterial();
-      this.depthMaterial.side = DoubleSide;
-      this.depthMaterial.depthPacking = RGBADepthPacking;
-      this.depthMaterial.blending = NoBlending;
-    }
-
     this.prepareMaskMaterial = this._getPrepareMaskMaterial(
-      this._gBufferRenderTarget?.isFloatGBufferWithRgbNormalAlphaDepth
+      this.gBufferTextures?.isFloatGBufferWithRgbNormalAlphaDepth
     );
     this.prepareMaskMaterial.side = DoubleSide;
     this.prepareMaskMaterial.fragmentShader = replaceDepthToViewZ(
       this.prepareMaskMaterial.fragmentShader,
       this.renderCamera
     );
-
-    if (!this._gBufferRenderTarget) {
-      this.renderTargetDepthBuffer = new WebGLRenderTarget(
-        this.resolution.x,
-        this.resolution.y
-      );
-      this.renderTargetDepthBuffer.texture.name = 'OutlinePass.depth';
-      this.renderTargetDepthBuffer.texture.generateMipmaps = false;
-    }
 
     if (this.edgeDetectionFxaa) {
       this.fxaaRenderMaterial = new ShaderMaterial(FXAAShader);
@@ -221,7 +198,7 @@ export class OutlinePass extends Pass {
     this.enabled = true;
     this.needsSwap = false;
 
-    this._oldClearColor = new Color();
+    this.oldClearColor = new Color();
     this.oldClearAlpha = 1;
 
     this.fsQuad = new FullScreenQuad(undefined);
@@ -241,16 +218,14 @@ export class OutlinePass extends Pass {
   }
 
   public dispose() {
+    super.dispose();
     this.renderTargetMaskBuffer.dispose();
     this.renderTargetFxaaBuffer?.dispose();
-    this.renderTargetDepthBuffer?.dispose();
     this.renderTargetMaskDownSampleBuffer.dispose();
     this.renderTargetBlurBuffer1.dispose();
     this.renderTargetBlurBuffer2.dispose();
     this.renderTargetEdgeBuffer1.dispose();
     this.renderTargetEdgeBuffer2.dispose();
-
-    this.depthMaterial?.dispose();
     this.prepareMaskMaterial.dispose();
     this.fxaaRenderMaterial?.dispose();
     this.edgeDetectionMaterial.dispose();
@@ -258,13 +233,11 @@ export class OutlinePass extends Pass {
     this.separableBlurMaterial2.dispose();
     this.overlayMaterial.dispose();
     this.materialCopy.dispose();
-
     this.fsQuad.dispose();
   }
 
   public setSize(width: number, height: number) {
     this.renderTargetMaskBuffer.setSize(width, height);
-    this.renderTargetDepthBuffer?.setSize(width, height);
 
     let resx = Math.round(width / this.downSampleRatio);
     let resy = Math.round(height / this.downSampleRatio);
@@ -378,16 +351,14 @@ export class OutlinePass extends Pass {
     maskActive: boolean
   ) {
     if (this.selectedObjects.length > 0) {
-      this._gBufferRenderTarget?.render(
-        renderer,
-        this.renderScene,
-        this.renderCamera
-      );
-
-      renderer.getClearColor(this._oldClearColor);
+      renderer.getClearColor(this.oldClearColor);
       this.oldClearAlpha = renderer.getClearAlpha();
       const oldAutoClear = renderer.autoClear;
 
+      if (this.clearBackground) {
+        renderer.setClearColor(0x000000, 0xff);
+        renderer.clear(true, false, false);
+      }
       renderer.autoClear = false;
 
       if (maskActive) {
@@ -401,14 +372,6 @@ export class OutlinePass extends Pass {
 
       const currentBackground = this.renderScene.background;
       this.renderScene.background = null;
-
-      // 1. Draw Non Selected objects in the depth buffer
-      if (this.renderTargetDepthBuffer && this.depthMaterial) {
-        this.renderScene.overrideMaterial = this.depthMaterial;
-        renderer.setRenderTarget(this.renderTargetDepthBuffer);
-        renderer.clear();
-        renderer.render(this.renderScene, this.renderCamera);
-      }
 
       // Make selected objects visible
       this._changeVisibilityOfSelectedObjects(true);
@@ -426,13 +389,8 @@ export class OutlinePass extends Pass {
         // @ts-ignore -- wrong typing far is there
         this.renderCamera.far
       );
-      if (this._gBufferRenderTarget) {
-        this.prepareMaskMaterial.uniforms.depthTexture.value =
-          this._gBufferRenderTarget.textureWithDepthValue;
-      } else {
-        this.prepareMaskMaterial.uniforms.depthTexture.value =
-          this.renderTargetDepthBuffer?.texture;
-      }
+      this.prepareMaskMaterial.uniforms.depthTexture.value =
+        this.gBufferTextures.textureWithDepthValue;
       this.prepareMaskMaterial.uniforms.textureMatrix.value =
         this.textureMatrix;
       renderer.setRenderTarget(this.renderTargetMaskBuffer);
@@ -553,7 +511,7 @@ export class OutlinePass extends Pass {
       renderer.setRenderTarget(readBuffer);
       this.fsQuad.render(renderer);
 
-      renderer.setClearColor(this._oldClearColor, this.oldClearAlpha);
+      renderer.setClearColor(this.oldClearColor, this.oldClearAlpha);
       renderer.autoClear = oldAutoClear;
     }
 
@@ -563,6 +521,10 @@ export class OutlinePass extends Pass {
       renderer.setRenderTarget(null);
       this.fsQuad.render(renderer);
     }
+  }
+
+  public renderPass(renderer: WebGLRenderer): void {
+    this.render(renderer, null, null, 0, false);
   }
 
   private _getPrepareMaskMaterial(floatAlphaDepth?: boolean) {

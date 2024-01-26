@@ -1,10 +1,12 @@
+import { RenderPass } from './render-pass';
+import type { RenderPassManager } from '../render-pass-manager';
 import { RectAreaLightHelper } from 'three/examples/jsm/helpers/RectAreaLightHelper.js';
-import type { SceneVolume } from './render-utility';
-import { CameraUpdate, RenderPass } from './render-utility';
-import type { LightSource } from './light-source-detection';
-import type { RenderCacheManager } from './render-cache';
-import { ObjectRenderCache } from './render-cache';
-import { IlluminationBufferMaterial } from './materials/illumination-buffer-material';
+import type { SceneVolume } from '../render-utility';
+import { CameraUpdate } from '../render-utility';
+import type { LightSource } from '../light-source-detection';
+import { ObjectRenderCache } from '../render-cache';
+import { IlluminationBufferMaterial } from '../materials/illumination-buffer-material';
+import type { Enumify } from '../../utils/types';
 import type {
   Box3,
   Camera,
@@ -40,10 +42,12 @@ import {
   WebGLRenderTarget,
 } from 'three';
 
-export enum ShadowLightSourceType {
-  DirectionalLightShadow,
-  SpotLightShadow,
-}
+export const SHADOW_LIGHT_SOURCE_TYPES = {
+  DIRECTION_LIGHT_SHADOW: 'DirectionalLightShadow',
+  SPOT_LIGHT_SHADOW: 'SpotLightShadow',
+} as const;
+
+export type ShadowLightSourceType = Enumify<typeof SHADOW_LIGHT_SOURCE_TYPES>;
 
 export interface ScreenSpaceShadowMapParameters {
   [key: string]: any;
@@ -66,7 +70,7 @@ export const defaultScreenSpaceShadowMapParameters: ScreenSpaceShadowMapParamete
     enableShadowMap: true,
     enableGroundBoundary: true,
     layers: null,
-    shadowLightSourceType: ShadowLightSourceType.DirectionalLightShadow,
+    shadowLightSourceType: SHADOW_LIGHT_SOURCE_TYPES.DIRECTION_LIGHT_SHADOW,
     maximumNumberOfLightSources: -1,
     directionalDependency: 1.0,
     directionalExponent: 1.0,
@@ -114,13 +118,13 @@ export interface ScreenSpaceShadowMapConstructorParameters {
   fadeOutBlur?: number;
 }
 
-export class ScreenSpaceShadowMap {
+export class ScreenSpaceShadowMapPass extends RenderPass {
   public parameters: ScreenSpaceShadowMapParameters;
   public needsUpdate: boolean = false;
+  public drawGround: boolean = true;
   public shadowTypeNeedsUpdate: boolean = true;
   public shadowConfiguration = new ShadowTypeConfiguration();
   private _shadowLightSources: ShadowLightSource[] = [];
-  private _renderCacheManager: RenderCacheManager;
   private _shadowMapPassOverrideMaterialCache: ShadowMapPassOverrideMaterialCache;
   private _viewportSize: Vector2;
   private _samples: number;
@@ -129,7 +133,6 @@ export class ScreenSpaceShadowMap {
   private _shadowMapSize: number;
   public castShadow: boolean;
   private _shadowRenderTarget: WebGLRenderTarget;
-  private _renderPass = new RenderPass();
   private _cameraUpdate: CameraUpdate = new CameraUpdate();
 
   public get shadowTexture(): Texture {
@@ -141,11 +144,11 @@ export class ScreenSpaceShadowMap {
   }
 
   constructor(
-    renderCacheManager: RenderCacheManager,
+    renderPassManager: RenderPassManager,
     viewportSize: Vector2,
     parameters: ScreenSpaceShadowMapConstructorParameters
   ) {
-    this._renderCacheManager = renderCacheManager;
+    super(renderPassManager);
     this._viewportSize = new Vector2(viewportSize.x, viewportSize.y);
     this._samples = parameters?.samples ?? 0;
     this._shadowMapSize = parameters?.shadowMapSize ?? 1024;
@@ -153,7 +156,7 @@ export class ScreenSpaceShadowMap {
     this.castShadow = this.parameters.enableShadowMap;
     this._shadowMapPassOverrideMaterialCache =
       new ShadowMapPassOverrideMaterialCache();
-    this._renderCacheManager.registerCache(
+    this.renderCacheManager?.registerCache(
       this,
       this._shadowMapPassOverrideMaterialCache
     );
@@ -175,6 +178,7 @@ export class ScreenSpaceShadowMap {
   }
 
   public dispose(): void {
+    super.dispose();
     this._shadowLightSources.forEach((item) => item.dispose());
     this._shadowRenderTarget.dispose();
     this._shadowMapPassOverrideMaterialCache.dispose();
@@ -246,18 +250,19 @@ export class ScreenSpaceShadowMap {
     rectAreaLights: RectAreaLight[],
     parent: Object3D
   ): void {
-    this._shadowLightSources = this._shadowLightSources.filter((item) => {
-      if (item instanceof RectAreaShadowLightSource) {
-        const light = item.getRectAreaLight();
+    const shadowLightSources = this._shadowLightSources;
+    this._shadowLightSources = this._createShadowLightSourceArray(false);
+    for (const lightSource of shadowLightSources) {
+      if (lightSource instanceof RectAreaShadowLightSource) {
+        const light = lightSource.getRectAreaLight();
         if (rectAreaLights.includes(light)) {
-          item.updatePositionAndTarget();
-          return true;
+          lightSource.updatePositionAndTarget();
+          this._shadowLightSources.push(lightSource);
         }
       }
-      item.removeFrom(parent);
-      item.dispose();
-      return false;
-    });
+      lightSource.removeFrom(parent);
+      lightSource.dispose();
+    }
     rectAreaLights.forEach((light) => {
       if (
         !this._shadowLightSources.find(
@@ -277,10 +282,11 @@ export class ScreenSpaceShadowMap {
     parent: Object3D,
     lightSources: LightSource[]
   ): void {
-    this._shadowLightSources = this._shadowLightSources.filter((item) => {
-      item.removeFrom(parent);
-      item.dispose();
-    });
+    for (const lightSource of this._shadowLightSources) {
+      lightSource.removeFrom(parent);
+      lightSource.dispose();
+    }
+    this._shadowLightSources = this._createShadowLightSourceArray(true);
     const maxIntensity =
       lightSources.length > 0
         ? Math.max(
@@ -305,13 +311,6 @@ export class ScreenSpaceShadowMap {
   ): void {
     const lightIntensityThreshold = 0.1;
     const lightDistanceScale = 7;
-    const groundShadowLight = new GroundShadowLightSource(
-      new Vector3(0, lightDistanceScale, 0),
-      {
-        shadowMapSize: this._shadowMapSize,
-      }
-    );
-    this._shadowLightSources.push(groundShadowLight);
     lightSources.forEach((lightSource) => {
       const lightIntensity = lightSource.maxIntensity * lightIntensityScale;
       if (
@@ -336,6 +335,23 @@ export class ScreenSpaceShadowMap {
     });
   }
 
+  private _createShadowLightSourceArray(
+    groundBoundary: boolean
+  ): ShadowLightSource[] {
+    const shadowLightSources: ShadowLightSource[] = [];
+    if (groundBoundary) {
+      const groundShadowLight = new GroundShadowLightSource(
+        new Vector3(0, 7, 0),
+        {
+          shadowMapSize: this._shadowMapSize,
+        }
+      );
+      shadowLightSources.push(groundShadowLight);
+    }
+    this.parameters.enableGroundBoundary = groundBoundary;
+    return shadowLightSources;
+  }
+
   public setSize(width: number, height: number): void {
     this._viewportSize = new Vector2(width, height);
     this._shadowRenderTarget.setSize(
@@ -348,15 +364,11 @@ export class ScreenSpaceShadowMap {
     this._shadowLightSources.forEach((item) => item.updatePositionAndTarget());
   }
 
-  public renderShadowMap(
-    renderer: WebGLRenderer,
-    scene: Scene,
-    camera: Camera
-  ): void {
+  public renderPass(renderer: WebGLRenderer): void {
     const needsUpdate =
       this.needsUpdate ||
       this.parameters.alwaysUpdate ||
-      this._cameraUpdate.changed(camera);
+      this._cameraUpdate.changed(this.camera);
     if (!needsUpdate) {
       return;
     }
@@ -366,19 +378,24 @@ export class ScreenSpaceShadowMap {
       this.needsUpdate = true;
       this._updateShadowType(renderer);
     }
-
-    const sceneBackground = scene.background;
-    const sceneEnvironment = scene.environment;
-    const layersMaskBackup = camera.layers.mask;
-    scene.environment = null;
-    scene.background = null;
+    const sceneBackground = this.scene.background;
+    const sceneEnvironment = this.scene.environment;
+    const layersMaskBackup = this.camera.layers.mask;
+    this.scene.environment = null;
+    this.scene.background = null;
     if (this.parameters.layers) {
-      camera.layers.mask = this.parameters.layers.mask;
+      this.camera.layers.mask = this.parameters.layers.mask;
     }
-    this._renderSimpleShadowMapFromShadowLightSources(renderer, scene, camera);
-    camera.layers.mask = layersMaskBackup;
-    scene.environment = sceneEnvironment;
-    scene.background = sceneBackground;
+    this.renderPassManager.setGroundVisibility(this.drawGround);
+    this._renderSimpleShadowMapFromShadowLightSources(
+      renderer,
+      this.scene,
+      this.camera
+    );
+    this.renderPassManager.setGroundVisibility(false);
+    this.camera.layers.mask = layersMaskBackup;
+    this.scene.environment = sceneEnvironment;
+    this.scene.background = sceneBackground;
   }
 
   private _renderSimpleShadowMapFromShadowLightSources(
@@ -397,11 +414,11 @@ export class ScreenSpaceShadowMap {
     );
     const activeShadowLights = this._getSortedShadowLightSources();
     if (activeShadowLights.length === 0) {
-      this._renderPass.clear(renderer, this._shadowRenderTarget, 0xffffff, 1);
+      this.passRenderer.clear(renderer, this._shadowRenderTarget, 0xffffff, 1);
     } else {
       this._setShadowLightSourcesIntensity(activeShadowLights);
-      this._renderCacheManager.render(this, scene, () => {
-        this._renderPass.render(
+      this.renderCacheManager?.render(this, scene, () => {
+        this.passRenderer.render(
           renderer,
           scene,
           camera,
@@ -508,12 +525,14 @@ export class ScreenSpaceShadowMap {
   }
 }
 
-enum ShadowMaterialType {
-  Default,
-  Unlit,
-  Emissive,
-  Shadow,
-}
+export const SHADOW_MATERIAL_TYPE = {
+  DEFAULT: 'default',
+  UNLIT: 'unlit',
+  EMISSIVE: 'emissive',
+  SHADOW: 'shadow',
+} as const;
+
+export type ShadowMaterialType = Enumify<typeof SHADOW_MATERIAL_TYPE>;
 
 export class ShadowMapPassOverrideMaterialCache extends ObjectRenderCache {
   static useModifiedMaterial: boolean = true;
@@ -531,14 +550,16 @@ export class ShadowMapPassOverrideMaterialCache extends ObjectRenderCache {
   constructor() {
     super();
     this._shadowObjectMaterial = this._createShadowMaterial(
-      ShadowMaterialType.Default
+      SHADOW_MATERIAL_TYPE.DEFAULT
     );
-    this._unlitMaterial = this._createShadowMaterial(ShadowMaterialType.Unlit);
+    this._unlitMaterial = this._createShadowMaterial(
+      SHADOW_MATERIAL_TYPE.UNLIT
+    );
     this._emissiveMaterial = this._createShadowMaterial(
-      ShadowMaterialType.Emissive
+      SHADOW_MATERIAL_TYPE.EMISSIVE
     );
     this._receiveShadowMaterial = this._createShadowMaterial(
-      ShadowMaterialType.Shadow
+      SHADOW_MATERIAL_TYPE.SHADOW
     );
   }
 
@@ -576,17 +597,17 @@ export class ShadowMapPassOverrideMaterialCache extends ObjectRenderCache {
 
   private _createShadowMaterial(type: ShadowMaterialType): Material {
     let material: Material;
-    if (type === ShadowMaterialType.Emissive) {
+    if (type === SHADOW_MATERIAL_TYPE.EMISSIVE) {
       material = new MeshBasicMaterial({
         color: 0xffffff,
         side: DoubleSide,
       });
-    } else if (type === ShadowMaterialType.Unlit) {
+    } else if (type === SHADOW_MATERIAL_TYPE.UNLIT) {
       material = new MeshBasicMaterial({
         color: 0xffffff,
         side: DoubleSide,
       });
-    } else if (type === ShadowMaterialType.Shadow) {
+    } else if (type === SHADOW_MATERIAL_TYPE.SHADOW) {
       material = new ShadowMaterial({
         side: DoubleSide,
       });
@@ -943,10 +964,10 @@ export class RectAreaShadowLightSource extends BaseShadowLightSource {
     let lightSource: Light;
     switch (parameters?.shadowLightSourceType) {
       default:
-      case ShadowLightSourceType.DirectionalLightShadow:
+      case SHADOW_LIGHT_SOURCE_TYPES.DIRECTION_LIGHT_SHADOW:
         lightSource = new DirectionalLight(0xffffff, 1);
         break;
-      case ShadowLightSourceType.SpotLightShadow:
+      case SHADOW_LIGHT_SOURCE_TYPES.SPOT_LIGHT_SHADOW:
         lightSource = new SpotLight(0xffffff, 1, 0, Math.PI / 4, 0);
         break;
     }

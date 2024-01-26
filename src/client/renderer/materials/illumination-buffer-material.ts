@@ -1,4 +1,4 @@
-import type { Box3, WebGLRenderer } from 'three';
+import type { Box3, ShaderLibShader, WebGLRenderer } from 'three';
 import { MeshLambertMaterial, Vector2, Vector3, Vector4 } from 'three';
 
 interface ThreeShader {
@@ -15,6 +15,7 @@ export class IlluminationBufferMaterial extends MeshLambertMaterial {
 
   constructor(parameters?: any) {
     super(parameters);
+    this.customProgramCacheKey = this._customProgramCacheKey;
     this.onBeforeCompile = this._onBeforeCompile;
   }
 
@@ -42,7 +43,16 @@ export class IlluminationBufferMaterial extends MeshLambertMaterial {
     IlluminationBufferMaterial._sceneBoxMax.copy(box.max);
   }
 
-  private _onBeforeCompile(materialShader: any, _renderer: WebGLRenderer) {
+  private _customProgramCacheKey() {
+    return IlluminationBufferMaterial._enableGroundBoundary
+      ? 'GROUND_BOUNDARY'
+      : 'NO_GROUND_BOUNDARY';
+  }
+
+  private _onBeforeCompile(
+    materialShader: ShaderLibShader,
+    _renderer: WebGLRenderer
+  ) {
     materialShader.vertexShader = screenSpaceShadowMaterialVertexShader;
     materialShader.fragmentShader = screenSpaceShadowMaterialFragmentShader;
     (materialShader as ThreeShader).defines = Object.assign({
@@ -166,10 +176,6 @@ float getShadowDynamicRadius(sampler2D shadowMap, float shadowBias, float shadow
   bool inFrustum = shadowCoord.x >= 0.0 && shadowCoord.x <= 1.0 && shadowCoord.y >= 0.0 && shadowCoord.y <= 1.0;
   bool frustumTest = inFrustum && shadowCoord.z <= 1.0;
   if (frustumTest && fadeOutDistance > 0.0) {
-    //float shadowDepth = unpackRGBAToDepth(texture2D(shadowMap, shadowCoord.xy));
-    //float delta = shadowDepth - shadowCoord.z;
-    //float fadeOutStart = delta / fadeOutDistance;
-    //dynamicRadius = shadowRadius + fadeOutBlur * max(0.0, max(shadowScale.x, fadeOutScale));
     dynamicRadius = shadowRadius + fadeOutBlur * max(0.0, shadowScale.x);
   }
 #endif

@@ -1,9 +1,13 @@
 import type { SceneVolume } from './render-utility';
-import { RenderPass } from './render-utility';
-import { GBufferRenderTargets } from './gbuffer-render-target';
-import {
+import { PassRenderer } from './render-utility';
+import type { GBufferRenderPass } from './pass/gbuffer-render-pass';
+import type {
   NormalVectorSourceType,
   DepthValueSourceType,
+} from './pass/pass-utility';
+import {
+  NORMAL_VECTOR_SOURCE_TYPES,
+  DEPTH_VALUE_SOURCE_TYPES,
 } from './pass/pass-utility';
 // @ts-ignore -- TS7016: Could not find declaration file
 import { SSRShader } from './../../shaders/SSRShader.js';
@@ -26,7 +30,10 @@ import {
   Vector3,
   WebGLRenderTarget,
 } from 'three';
-import { CopyTransformMaterial, CopyMaterialBlendMode } from './shader-utility';
+import {
+  CopyTransformMaterial,
+  COLOR_COPY_BLEND_MODES,
+} from './shader-utility';
 
 export interface SSRParameters {
   [key: string]: any;
@@ -48,9 +55,9 @@ export class ScreenSpaceReflection {
   private _height: number = 0;
   private _samples: number = 0;
   private _ssrRenderPass: SSRRenderPass;
-  private _renderPass: RenderPass;
-  private _sharedGBufferRenderTarget?: GBufferRenderTargets;
-  private _gBufferRenderTarget?: GBufferRenderTargets;
+  private _renderPass: PassRenderer;
+  private _sharedGBufferRenderTarget?: GBufferRenderPass;
+  private _gBufferRenderTarget?: GBufferRenderPass;
   private _blendMaterial: CopyTransformMaterial;
   private _copyDiffuseFrameTexture?: FramebufferTexture;
 
@@ -70,18 +77,11 @@ export class ScreenSpaceReflection {
     return this._copyDiffuseFrameTexture ? this._copyDiffuseFrameTexture : null;
   }
 
-  public get gBufferRenderTarget(): GBufferRenderTargets {
+  public get gBufferRenderTarget(): GBufferRenderPass {
     if (this._sharedGBufferRenderTarget) {
       return this._sharedGBufferRenderTarget;
     }
-    this._gBufferRenderTarget =
-      this._gBufferRenderTarget ??
-      new GBufferRenderTargets(undefined, {
-        width: this._width,
-        height: this._height,
-        samples: this._samples,
-        renderPass: this._renderPass,
-      });
+    this._gBufferRenderTarget = this._gBufferRenderTarget as GBufferRenderPass;
     return this._gBufferRenderTarget;
   }
 
@@ -100,9 +100,9 @@ export class ScreenSpaceReflection {
     this._ssrRenderPass = new SSRRenderPass(width, height, parameters);
     this._blendMaterial = new CopyTransformMaterial(
       {},
-      CopyMaterialBlendMode.DEFAULT
+      COLOR_COPY_BLEND_MODES.DEFAULT
     );
-    this._renderPass = parameters?.renderPass || new RenderPass();
+    this._renderPass = parameters?.renderPass || new PassRenderer();
   }
 
   public dispose(): void {
@@ -149,7 +149,7 @@ export class ScreenSpaceReflection {
       new Vector2(),
       this._copyDiffuseFrameTexture
     );
-    this.gBufferRenderTarget.render(renderer, scene, camera);
+    this.gBufferRenderTarget.renderPass(renderer);
     this._ssrRenderPass.inputTexture = this._copyDiffuseFrameTexture;
     this._ssrRenderPass.depthTexture =
       this.gBufferRenderTarget.depthBufferTexture;
@@ -192,16 +192,16 @@ export class SSRRenderPass {
   private _width: number = 0;
   private _height: number = 0;
   private _normalVectorSourceType: NormalVectorSourceType =
-    NormalVectorSourceType.FLOAT_BUFFER_NORMAL;
+    NORMAL_VECTOR_SOURCE_TYPES.FLOAT_BUFFER_NORMAL;
   private _depthValueSourceType: DepthValueSourceType =
-    DepthValueSourceType.NORMAL_VECTOR_ALPHA;
+    DEPTH_VALUE_SOURCE_TYPES.NORMAL_VECTOR_ALPHA;
   public _inputTexture: Texture | null = null;
   public depthTexture: Texture | null = null;
   public normalTexture: Texture | null = null;
   public illuminationBufferTexture: Texture | null = null;
   private _ssrMaterial?: ShaderMaterial;
   private _renderTarget: WebGLRenderTarget | null = null;
-  private _renderPass: RenderPass;
+  private _renderPass: PassRenderer;
   private _sceneBoxMin: Vector3 = new Vector3(-1, -1, -1);
   private _sceneBoxMax: Vector3 = new Vector3(1, 1, 1);
 
@@ -218,11 +218,11 @@ export class SSRRenderPass {
     this._height = height;
     this._normalVectorSourceType =
       parameters?.normalVectorSourceType ||
-      NormalVectorSourceType.FLOAT_BUFFER_NORMAL;
+      NORMAL_VECTOR_SOURCE_TYPES.FLOAT_BUFFER_NORMAL;
     this._depthValueSourceType =
       parameters?.depthValueSourceType ||
-      DepthValueSourceType.NORMAL_VECTOR_ALPHA;
-    this._renderPass = parameters?.renderPass || new RenderPass();
+      DEPTH_VALUE_SOURCE_TYPES.NORMAL_VECTOR_ALPHA;
+    this._renderPass = parameters?.renderPass || new PassRenderer();
     if (parameters?.ssrParameters) {
       this.parameters = parameters.ssrParameters as SSRParameters;
     }
@@ -261,17 +261,19 @@ export class SSRRenderPass {
         : 0;
       this._ssrMaterial.defines.NORMAL_VECTOR_TYPE =
         this._normalVectorSourceType ===
-        NormalVectorSourceType.FLOAT_BUFFER_NORMAL
+        NORMAL_VECTOR_SOURCE_TYPES.FLOAT_BUFFER_NORMAL
           ? 2
           : 1;
       this._ssrMaterial.defines.DEPTH_VALUE_SOURCE =
-        this._depthValueSourceType === DepthValueSourceType.NORMAL_VECTOR_ALPHA
+        this._depthValueSourceType ===
+        DEPTH_VALUE_SOURCE_TYPES.NORMAL_VECTOR_ALPHA
           ? 1
           : 0;
       this._ssrMaterial.needsUpdate = true;
     }
     const depthTexture =
-      this._depthValueSourceType === DepthValueSourceType.NORMAL_VECTOR_ALPHA
+      this._depthValueSourceType ===
+      DEPTH_VALUE_SOURCE_TYPES.NORMAL_VECTOR_ALPHA
         ? this.normalTexture
         : this.depthTexture;
     this._ssrMaterial.uniforms.tDiffuse.value = this._inputTexture as Texture;

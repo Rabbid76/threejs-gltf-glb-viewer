@@ -1,8 +1,8 @@
+import type { Enumify } from '../../utils/types';
+import type { Texture } from 'three';
 import { Matrix4, Vector2, Vector3, Vector4 } from 'three';
 
-type Enumify<T> = T[keyof T];
-
-export const AoAlgorithms = {
+export const AO_ALGORITHMS = {
   SSAO: 0,
   SAO: 1,
   N8AO: 2,
@@ -10,7 +10,7 @@ export const AoAlgorithms = {
   GTAO: 4,
 } as const;
 
-export type AoAlgorithmType = Enumify<typeof AoAlgorithms> | null;
+export type AoAlgorithmType = Enumify<typeof AO_ALGORITHMS> | null;
 
 export const generateAoSampleKernelInitializer = (
   samples: number,
@@ -58,7 +58,7 @@ export const AOShader = {
     SAMPLE_VECTORS: generateAoSampleKernelInitializer(16, false),
     NORMAL_VECTOR_TYPE: 1,
     DEPTH_SWIZZLING: 'x',
-    AO_ALGORITHM: AoAlgorithms.GTAO,
+    AO_ALGORITHM: AO_ALGORITHMS.GTAO,
     NV_ALIGNED_SAMPLES: 1,
     SCREEN_SPACE_RADIUS: 0,
     SCREEN_SPACE_RADIUS_SCALE: 100.0,
@@ -68,12 +68,12 @@ export const AOShader = {
   },
 
   uniforms: {
-    tNormal: { value: null },
-    tDepth: { value: null },
-    tNoise: { value: null },
+    tNormal: { value: null as Texture | null },
+    tDepth: { value: null as Texture | null },
+    tNoise: { value: null as Texture | null },
     resolution: { value: new Vector2() },
-    cameraNear: { value: null },
-    cameraFar: { value: null },
+    cameraNear: { value: null as Texture | null },
+    cameraFar: { value: null as Texture | null },
     cameraProjectionMatrix: { value: new Matrix4() },
     cameraProjectionMatrixInverse: { value: new Matrix4() },
     cameraWorldMatrix: { value: new Matrix4() },

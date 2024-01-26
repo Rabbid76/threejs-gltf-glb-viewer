@@ -113,57 +113,55 @@ export class LightSources {
         default:
           break;
         case 'ambient':
-          {
-            const ambientLight = new AmbientLight(
-              new Color(definition.color),
-              0.0
-            );
-            this._lightSources.push(ambientLight);
-          }
+          // eslint-disable-next-line no-case-declarations
+          const ambientLight = new AmbientLight(
+            new Color(definition.color),
+            0.0
+          );
+          this._lightSources.push(ambientLight);
           break;
         case 'rectArea':
-          {
-            const position = new Vector3(
-              definition.position.x,
-              definition.position.y,
-              definition.position.z
+          // eslint-disable-next-line no-case-declarations
+          const position = new Vector3(
+            definition.position.x,
+            definition.position.y,
+            definition.position.z
+          );
+          if (
+            this.lightSourceScale &&
+            position.length() < this.lightSourceScale
+          ) {
+            position.normalize().multiplyScalar(this.lightSourceScale);
+          }
+          if (this._useRectAreaLight) {
+            const rectAreaLightWidth = 0.8;
+            const rectAreaLightHeight = 0.8;
+            const intensity =
+              (definition.intensity ?? 100) /
+              (rectAreaLightWidth * rectAreaLightHeight);
+            const rectAreaLight = new RectAreaLight(
+              new Color(definition.color),
+              intensity,
+              rectAreaLightWidth,
+              rectAreaLightHeight
             );
-            if (
-              this.lightSourceScale &&
-              position.length() < this.lightSourceScale
-            ) {
-              position.normalize().multiplyScalar(this.lightSourceScale);
-            }
-            if (this._useRectAreaLight) {
-              const rectAreaLightWidth = 0.8;
-              const rectAreaLightHeight = 0.8;
-              const intensity =
-                (definition.intensity ?? 100) /
-                (rectAreaLightWidth * rectAreaLightHeight);
-              const rectAreaLight = new RectAreaLight(
-                new Color(definition.color),
-                intensity,
-                rectAreaLightWidth,
-                rectAreaLightHeight
-              );
-              rectAreaLight.position.copy(position);
-              rectAreaLight.matrixAutoUpdate = true;
-              rectAreaLight.visible = definition.castShadow;
-              rectAreaLight.lookAt(new Vector3(0, 0, 0));
-              this._lightSources.push(rectAreaLight);
-              rectAreaLights.push(rectAreaLight);
-            } else {
-              const directionalLight = new DirectionalLight(
-                new Color(definition.color),
-                definition.intensity
-              );
-              directionalLight.position.copy(position);
-              directionalLight.visible = true;
-              directionalLight.intensity = definition.intensity;
-              directionalLight.castShadow = definition.castShadow;
-              directionalLight.lookAt(new Vector3(0, 0, 0));
-              this._lightSources.push(directionalLight);
-            }
+            rectAreaLight.position.copy(position);
+            rectAreaLight.matrixAutoUpdate = true;
+            rectAreaLight.visible = definition.castShadow;
+            rectAreaLight.lookAt(new Vector3(0, 0, 0));
+            this._lightSources.push(rectAreaLight);
+            rectAreaLights.push(rectAreaLight);
+          } else {
+            const directionalLight = new DirectionalLight(
+              new Color(definition.color),
+              definition.intensity
+            );
+            directionalLight.position.copy(position);
+            directionalLight.visible = true;
+            directionalLight.intensity = definition.intensity;
+            directionalLight.castShadow = definition.castShadow;
+            directionalLight.lookAt(new Vector3(0, 0, 0));
+            this._lightSources.push(directionalLight);
           }
           break;
       }
@@ -177,13 +175,16 @@ export class LightSources {
 
   public getShadowLightSources(): Light[] {
     const shadowLightSources: Light[] = [];
-    for (const light of this._lightSources) {
+    // eslint-disable-next-line @typescript-eslint/prefer-for-of
+    for (let i = 0; i < this._lightSources.length; i++) {
+      const light = this._lightSources[i];
       if (light instanceof AmbientLight) {
         continue;
       }
       shadowLightSources.push(
-        this.sceneRenderer?.screenSpaceShadow.findShadowLightSource(light) ||
+        this.sceneRenderer?.screenSpaceShadowMapPass.findShadowLightSource(
           light
+        ) || light
       );
     }
     return shadowLightSources;
@@ -308,7 +309,7 @@ export class LightSourcesGUI {
         );
         this.lightSourceFolders.push(lightFolder);
         const shadowLight =
-          this.lightSources.sceneRenderer?.screenSpaceShadow.findShadowLightSource(
+          this.lightSources.sceneRenderer?.screenSpaceShadowMapPass.findShadowLightSource(
             light
           );
         lightFolder.add<any>(light, 'visible');

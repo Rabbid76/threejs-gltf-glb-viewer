@@ -1,12 +1,19 @@
 import {
   generateMagicSquareDistributedKernelRotations,
-  RenderPass,
+  PassRenderer,
 } from '../render-utility';
-import { NormalVectorSourceType, DepthValueSourceType } from './pass-utility';
+import type {
+  NormalVectorSourceType,
+  DepthValueSourceType,
+} from './pass-utility';
+import {
+  NORMAL_VECTOR_SOURCE_TYPES,
+  DEPTH_VALUE_SOURCE_TYPES,
+} from './pass-utility';
 import type { AoAlgorithmType } from '../shaders/ao-shader';
 import {
   generateAoSampleKernelInitializer,
-  AoAlgorithms,
+  AO_ALGORITHMS,
   AOShader,
 } from '../shaders/ao-shader';
 import type {
@@ -34,7 +41,7 @@ import {
 } from 'three';
 import { SimplexNoise } from 'three/examples/jsm/math/SimplexNoise';
 
-export { AoAlgorithms, AoAlgorithmType } from '../shaders/ao-shader';
+export { AO_ALGORITHMS, AoAlgorithmType } from '../shaders/ao-shader';
 
 export interface AORenderPassParameters {
   [key: string]: any;
@@ -52,7 +59,7 @@ export interface AORenderPassParameters {
 
 export const defaultAORenderPassParameters: AORenderPassParameters = {
   resolutionScale: 1,
-  algorithm: AoAlgorithms.SSAO,
+  algorithm: AO_ALGORITHMS.SSAO,
   samples: 32,
   radius: 0.25,
   distanceExponent: 2, // 1
@@ -80,16 +87,16 @@ export class AORenderPass {
   private _width: number = 0;
   private _height: number = 0;
   private _normalVectorSourceType: NormalVectorSourceType =
-    NormalVectorSourceType.FLOAT_BUFFER_NORMAL;
+    NORMAL_VECTOR_SOURCE_TYPES.FLOAT_BUFFER_NORMAL;
   private _depthValueSourceType: DepthValueSourceType =
-    DepthValueSourceType.NORMAL_VECTOR_ALPHA;
+    DEPTH_VALUE_SOURCE_TYPES.NORMAL_VECTOR_ALPHA;
   private _modulateRedChannel: boolean = false;
   public depthTexture: Texture | null = null;
   public normalTexture: Texture | null = null;
   private _noiseTexture: Texture | null = null;
   private _aoMaterial?: ShaderMaterial;
   private _renderTarget: WebGLRenderTarget | null = null;
-  private _renderPass: RenderPass = new RenderPass();
+  private _passRenderer: PassRenderer = new PassRenderer();
   private _sceneClipBox: Box3 = new Box3(
     new Vector3(-1, -1, -1),
     new Vector3(1, 1, 1)
@@ -105,10 +112,10 @@ export class AORenderPass {
     this._height = height;
     this._normalVectorSourceType =
       parameters?.normalVectorSourceType ||
-      NormalVectorSourceType.FLOAT_BUFFER_NORMAL;
+      NORMAL_VECTOR_SOURCE_TYPES.FLOAT_BUFFER_NORMAL;
     this._depthValueSourceType =
       parameters?.depthValueSourceType ||
-      DepthValueSourceType.NORMAL_VECTOR_ALPHA;
+      DEPTH_VALUE_SOURCE_TYPES.NORMAL_VECTOR_ALPHA;
     this._modulateRedChannel = parameters?.modulateRedChannel || false;
     if (parameters?.aoParameters) {
       this.parameters = parameters.aoParameters;
@@ -199,21 +206,22 @@ export class AORenderPass {
     aoMaterial.defines.SAMPLES = this.parameters.samples;
     aoMaterial.defines.SAMPLE_VECTORS = generateAoSampleKernelInitializer(
       this.parameters.samples,
-      this.parameters.algorithm === AoAlgorithms.SSAO
+      this.parameters.algorithm === AO_ALGORITHMS.SSAO
     );
     aoMaterial.defines.NORMAL_VECTOR_TYPE =
       this._normalVectorSourceType ===
-      NormalVectorSourceType.FLOAT_BUFFER_NORMAL
+      NORMAL_VECTOR_SOURCE_TYPES.FLOAT_BUFFER_NORMAL
         ? 2
         : 1;
     aoMaterial.defines.DEPTH_SWIZZLING =
-      this._depthValueSourceType === DepthValueSourceType.NORMAL_VECTOR_ALPHA
+      this._depthValueSourceType ===
+      DEPTH_VALUE_SOURCE_TYPES.NORMAL_VECTOR_ALPHA
         ? 'a'
         : 'x';
     aoMaterial.defines.AO_ALGORITHM = this.parameters.algorithm;
     aoMaterial.defines.NV_ALIGNED_SAMPLES =
-      this.parameters.algorithm === AoAlgorithms.HBAO ||
-      this.parameters.algorithm === AoAlgorithms.GTAO
+      this.parameters.algorithm === AO_ALGORITHMS.HBAO ||
+      this.parameters.algorithm === AO_ALGORITHMS.GTAO
         ? 0
         : 1;
     aoMaterial.defines.SCREEN_SPACE_RADIUS = this.parameters.screenSpaceRadius
@@ -229,7 +237,8 @@ export class AORenderPass {
   ): void {
     const sceneScale = this.parameters.screenSpaceRadius ? 1 : this._sceneScale;
     const depthTexture =
-      this._depthValueSourceType === DepthValueSourceType.NORMAL_VECTOR_ALPHA
+      this._depthValueSourceType ===
+      DEPTH_VALUE_SOURCE_TYPES.NORMAL_VECTOR_ALPHA
         ? this.normalTexture
         : this.depthTexture;
     aoMaterial.uniforms.tNormal.value = this.normalTexture as Texture;
@@ -311,7 +320,7 @@ export class AORenderPass {
   }
 
   public clear(renderer: WebGLRenderer, renderTarget?: WebGLRenderTarget) {
-    this._renderPass.clear(
+    this._passRenderer.clear(
       renderer,
       renderTarget ? renderTarget : this._getRenderTargets(),
       0xffffff,
@@ -327,7 +336,7 @@ export class AORenderPass {
   ) {
     const hbaoMaterial = this._getMaterial(camera, this.needsUpdate);
     this.needsUpdate = false;
-    this._renderPass.renderScreenSpace(
+    this._passRenderer.renderScreenSpace(
       renderer,
       hbaoMaterial,
       renderTarget ? renderTarget : this._getRenderTargets()

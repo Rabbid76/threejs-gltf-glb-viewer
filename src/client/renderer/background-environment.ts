@@ -1,3 +1,4 @@
+import type { Enumify } from '../utils/types';
 import type { Camera, Object3D } from 'three';
 import {
   BufferGeometry,
@@ -10,17 +11,19 @@ import {
 } from 'three';
 import type { GUI, GUIController } from 'dat.gui';
 
-export enum BackgroundType {
-  None,
-  GridPaper,
-  Concrete,
-  Marble,
-  Granite,
-  VorocracksMarble,
-  Kraft,
-  Line,
-  Test,
-}
+export const BACKGROUND_TYPES = {
+  None: 'None',
+  GridPaper: 'GridPaper',
+  Concrete: 'Concrete',
+  Marble: 'Marble',
+  Granite: 'Granite',
+  VorocracksMarble: 'VorocracksMarble',
+  Kraft: 'Kraft',
+  Line: 'Line',
+  Test: 'Test',
+} as const;
+
+export type BackgroundType = Enumify<typeof BACKGROUND_TYPES>;
 
 export interface BackgroundParameter {
   [key: string]: any;
@@ -34,7 +37,7 @@ export class BackgroundEnvironment {
   private _materialMap = new Map<BackgroundType, ShaderMaterial>();
 
   public get isSet(): boolean {
-    return this.parameters.backgroundType !== BackgroundType.None;
+    return this.parameters.backgroundType !== BACKGROUND_TYPES.None;
   }
 
   constructor(parameters?: any) {
@@ -51,7 +54,7 @@ export class BackgroundEnvironment {
     this.backgroundMesh.name = 'Background';
     this.parameters = {
       visible: false,
-      backgroundType: BackgroundType.None,
+      backgroundType: BACKGROUND_TYPES.None,
       ...parameters,
     };
     this.updateBackground();
@@ -67,7 +70,7 @@ export class BackgroundEnvironment {
 
   public updateBackground() {
     this.backgroundMesh.visible =
-      this.parameters.backgroundType !== BackgroundType.None;
+      this.parameters.backgroundType !== BACKGROUND_TYPES.None;
     this.backgroundMaterial = this._getMaterial();
     this.backgroundMesh.material = this.backgroundMaterial;
   }
@@ -94,8 +97,8 @@ export class BackgroundEnvironment {
   }
 
   public hideBackground() {
-    if (this.parameters.backgroundType !== BackgroundType.None) {
-      this.parameters.backgroundType = BackgroundType.None;
+    if (this.parameters.backgroundType !== BACKGROUND_TYPES.None) {
+      this.parameters.backgroundType = BACKGROUND_TYPES.None;
       this.updateBackground();
     }
   }
@@ -111,31 +114,31 @@ export class BackgroundEnvironment {
     switch (this.parameters.backgroundType) {
       default:
         break;
-      case BackgroundType.Test:
+      case BACKGROUND_TYPES.Test:
         fragmentShader = glslTestBackgroundFragmentShader;
         break;
-      case BackgroundType.GridPaper:
+      case BACKGROUND_TYPES.GridPaper:
         fragmentShader = glslGridPaperBackgroundFragmentShader;
         break;
-      case BackgroundType.Concrete:
+      case BACKGROUND_TYPES.Concrete:
         fragmentShader = glslGraprogBackgroundFragmentShader;
         defines = { patternChoice: 1 };
         break;
-      case BackgroundType.Marble:
+      case BACKGROUND_TYPES.Marble:
         fragmentShader = glslGraprogBackgroundFragmentShader;
         defines = { patternChoice: 3 };
         break;
-      case BackgroundType.Granite:
+      case BACKGROUND_TYPES.Granite:
         fragmentShader = glslGraprogBackgroundFragmentShader;
         defines = { patternChoice: 6 };
         break;
-      case BackgroundType.VorocracksMarble:
+      case BACKGROUND_TYPES.VorocracksMarble:
         fragmentShader = glslMarbleBackgroundFragmentShader;
         break;
-      case BackgroundType.Kraft:
+      case BACKGROUND_TYPES.Kraft:
         fragmentShader = glslKraftBackgroundFragmentShader;
         break;
-      case BackgroundType.Line:
+      case BACKGROUND_TYPES.Line:
         fragmentShader = glslLineBackgroundFragmentShader;
         break;
     }
@@ -179,15 +182,15 @@ export class BackgroundEnvironmentGUI {
       backgroundType: '',
     };
     const backgroundTypes = new Map([
-      ['None', BackgroundType.None],
-      ['Grid Paper', BackgroundType.GridPaper],
-      ['Concrete', BackgroundType.Concrete],
-      ['Marble', BackgroundType.Marble],
-      ['Granite', BackgroundType.Granite],
-      ['Vorocracks Marble', BackgroundType.VorocracksMarble],
-      ['Kraft', BackgroundType.Kraft],
-      ['Line (slow)', BackgroundType.Line],
-      ['Test', BackgroundType.Test],
+      ['None', BACKGROUND_TYPES.None],
+      ['Grid Paper', BACKGROUND_TYPES.GridPaper],
+      ['Concrete', BACKGROUND_TYPES.Concrete],
+      ['Marble', BACKGROUND_TYPES.Marble],
+      ['Granite', BACKGROUND_TYPES.Granite],
+      ['Vorocracks Marble', BACKGROUND_TYPES.VorocracksMarble],
+      ['Kraft', BACKGROUND_TYPES.Kraft],
+      ['Line (slow)', BACKGROUND_TYPES.Line],
+      ['Test', BACKGROUND_TYPES.Test],
     ]);
     const backgroundNames: string[] = [];
     backgroundTypes.forEach((value, key) => {
@@ -201,7 +204,7 @@ export class BackgroundEnvironmentGUI {
       .onChange((backgroundType: string) => {
         if (backgroundTypes.has(backgroundType)) {
           this._backgroundEnvironment.parameters.backgroundType =
-            backgroundTypes.get(backgroundType) ?? BackgroundType.None;
+            backgroundTypes.get(backgroundType) ?? BACKGROUND_TYPES.None;
           this._backgroundEnvironment.updateBackground();
           if (updateCallback) {
             updateCallback(this._backgroundEnvironment);

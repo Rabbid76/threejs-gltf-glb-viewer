@@ -1,10 +1,11 @@
 import type { GeometryAndMaterial, MaterialData } from './meshConstructor';
 import { createSceneGroup } from './meshConstructor';
 import { LightSources } from './lightSources';
+import type { GroundMaterialType } from './materials';
 import {
   createGroundMaterial,
   createPreviewMaterial,
-  GroundMaterialType,
+  GROUND_MATERIAL_TYPES,
 } from './materials';
 import { EnvironmentLoader } from '../loader/environment_map/environmentLoader';
 import { SkyEnvironment } from './skyEnvironment';
@@ -14,12 +15,15 @@ import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader';
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import { Controls } from './controls';
-import type { SceneRendererParameters } from '../renderer/scene-renderer';
-import { QualityLevel, SceneRenderer } from '../renderer/scene-renderer';
+import type {
+  OutlineParameters,
+  SceneRendererParameters,
+} from '../renderer/scene-renderer';
+import { QUALITY_LEVELS, SceneRenderer } from '../renderer/scene-renderer';
 import { DimensioningArrow } from './dimensioningArrow';
 import {
   DefaultEnvironmentSceneGenerator,
-  DefaultEnvironmentScenes,
+  DEFAULT_ENVIRONMENT_SCENE_TYPES,
 } from '../renderer/environment-scene';
 import { defaultQualityLevels } from './quality-levels';
 import type {
@@ -84,7 +88,8 @@ export class SceneManager {
   private sceneBounds = new Box3();
   private turnTableGroup = new Group();
   private scaleShadowAndAo: boolean = false;
-  public groundMaterialType = GroundMaterialType.OnlyShadow;
+  public groundMaterialType: GroundMaterialType =
+    GROUND_MATERIAL_TYPES.ONL_SHADOW;
   private noiseTexture: Texture;
   private raycaster = new Raycaster();
   public environmentLoader: EnvironmentLoader;
@@ -141,9 +146,9 @@ export class SceneManager {
         edgeThickness: 1.0,
         //visibleEdgeColor: 0xff0000,
         //hiddenEdgeColor: 0xff0000,
-      },
+      } as OutlineParameters,
     });
-    this.sceneRenderer.setQualityLevel(QualityLevel.HIGHEST);
+    this.sceneRenderer.setQualityLevel(QUALITY_LEVELS.HIGHEST);
     this.skyEnvironment = new SkyEnvironment();
     this.skyEnvironment.addToScene(this.scene);
     this.backgroundEnvironment = new BackgroundEnvironment();
@@ -208,7 +213,7 @@ export class SceneManager {
       true,
       () => {
         return new DefaultEnvironmentSceneGenerator({
-          type: DefaultEnvironmentScenes.ALL_AROUND,
+          type: DEFAULT_ENVIRONMENT_SCENE_TYPES.ALL_AROUND,
         });
       },
       'room environment'
@@ -217,7 +222,7 @@ export class SceneManager {
       false,
       () => {
         return new DefaultEnvironmentSceneGenerator({
-          type: DefaultEnvironmentScenes.FRONT,
+          type: DEFAULT_ENVIRONMENT_SCENE_TYPES.FRONT,
         });
       },
       'front light environment'
@@ -226,7 +231,7 @@ export class SceneManager {
   }
 
   public updateSceneDependencies(): void {
-    this.sceneRenderer.bakedGroundContactShadow.needsUpdate = true;
+    this.sceneRenderer.bakedGroundContactShadowPass.needsUpdate = true;
     this.updateBounds();
   }
 
