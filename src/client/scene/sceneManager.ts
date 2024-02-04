@@ -56,8 +56,7 @@ import {
 } from 'three';
 import type { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import type { CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
-// @ts-ignore
-import { GroundProjectedSkybox } from 'three/examples/jsm/objects/GroundProjectedSkybox.js';
+import { GroundedSkybox } from 'three/examples/jsm/objects/GroundedSkybox.js';
 // @ts-ignore
 import Test64EnvMap from './../../../resources/test64.envmap';
 
@@ -421,9 +420,11 @@ export class SceneManager {
           LightSources.noLightSources;
         this.lightSources.updateLightSources();
         if (this.createGroundProjectionSkybox) {
-          this.groundProjectionSkybox = new GroundProjectedSkybox(
-            equirectangularTexture
-          ) as Mesh;
+          this.groundProjectionSkybox = new GroundedSkybox(
+            equirectangularTexture,
+            1.5,
+            10
+          );
           this.groundProjectionSkybox.scale.setScalar(
             this.groundProjectionSkyboxDistance
           );

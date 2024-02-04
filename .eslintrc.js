@@ -27,6 +27,7 @@ module.exports = {
         "*.envmap",
         "*.exr",
         "beta/**/*",
+        "deploy/**/*",
         "dist/**/*",
         "patches/**/*",
         "resources/**/*",

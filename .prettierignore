@@ -1,6 +1,7 @@
 .devcontainer
 .vscode
 beta
+deploy
 dist/client/**/*.js
 dist/server
 patches

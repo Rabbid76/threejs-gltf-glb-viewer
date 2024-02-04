@@ -1,0 +1,55 @@
+name: CI - update node packages and build
+
+on:
+  schedule:
+    - cron: '0 1 * * 5'
+
+  workflow_dispatch:
+
+jobs:
+  update-node-pacakges:
+    name: update node packages and build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Set up env 🛠️
+        run: echo "CURRENT_DATE=$(date +'%Y-%m-%d')" >> $GITHUB_ENV
+
+      - name: Checkout 🛎️
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Node.js ⚙️
+        uses: actions/setup-node@v4
+        with:
+          node-version: latest
+
+      - name: Print versions
+        run: |-
+          echo $CURRENT_DATE
+          echo "node version: $(node --version) $(which node)"
+          echo "npw version: $(npm --version) $(which npm)"
+
+      - name: Install ncu 🔀
+        run: npm install npm-check-updates
+
+      - name: Upgrade packages 🔀
+        run: npm run update:modules
+
+      - name: Prettier and ESLint 🔀
+        run: npm run format
+
+      - name: Build 🔀
+        run: npm run build
+
+      - name: Deploy 🔀
+        run: npm run copy:deploy
+
+      - name: Commit and create PR 🔀
+        uses: peter-evans/create-pull-request@v3
+        with:
+          token: ${{ secrets.WORKFLOW_TOKEN }}
+          title: 'build(deps): Upgrade NPM packages (automated)'
+          branch: 'build-deps-upgrade-npm-packages-automated-${{ env.CURRENT_DATE }}'
+          commit-message: 'build(deps): upgrade NPM packages (automated)'
