@@ -47,9 +47,11 @@ jobs:
         run: npm run copy:deploy
 
       - name: Commit and create PR 🔀
-        uses: peter-evans/create-pull-request@v3
+        uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.WORKFLOW_TOKEN }}
           title: 'build(deps): Upgrade NPM packages (automated)'
           branch: 'build-deps-upgrade-npm-packages-automated-${{ env.CURRENT_DATE }}'
           commit-message: 'build(deps): upgrade NPM packages (automated)'
+          assignees: Rabbid76
+          draft: false
