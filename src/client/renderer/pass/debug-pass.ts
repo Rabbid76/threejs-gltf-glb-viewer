@@ -264,6 +264,22 @@ export class DebugPass extends RenderPass {
           null
         );
         break;
+      case 'groundreflectionfinal':
+        this.passRenderer.renderScreenSpace(
+          renderer,
+          this.getCopyMaterial({
+            texture:
+              this.renderPassManager.groundReflectionPass.intensityRenderTarget
+                .texture,
+            blending: NoBlending,
+            colorTransform: DEFAULT_TRANSFORM,
+            colorBase: ZERO_RGBA,
+            multiplyChannels: 0,
+            uvTransform: FLIP_Y_UV_TRANSFORM,
+          }),
+          null
+        );
+        break;
       case 'bakedgroundshadow':
         this.passRenderer.renderScreenSpace(
           renderer,

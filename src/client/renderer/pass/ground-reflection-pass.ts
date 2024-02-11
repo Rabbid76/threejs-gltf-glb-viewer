@@ -3,7 +3,7 @@ import { RenderPass } from './render-pass';
 import type { RenderPassManager } from '../render-pass-manager';
 import {
   BlurShader,
-  CopyTransformMaterial,
+    CopyTransformMaterial,
   FLIP_Y_UV_TRANSFORM,
 } from '../shader-utility';
 import type {
@@ -418,8 +418,8 @@ const glslGroundReflectionIntensityFragmentShader = `
       fragColor.rgb = mix(fragColor.rgb * 12.92, 1.055 * pow(fragColor.rgb, vec3(0.41666)) - 0.055, step(0.0031308, fragColor.rgb));
     #endif
     float fadeOutAlpha = pow(clamp(1.0 - distance / fadeOutDistance, 0.0, 1.0), fadeOutExponent);
-    fragColor.a *= fadeOutAlpha;
-    gl_FragColor = fragColor * step(depth, 0.9999);
+    fragColor.a *= fadeOutAlpha * step(depth, 0.9999);
+    gl_FragColor = fragColor;
   }`;
 
 export interface GroundReflectionIntensityMaterialParameters {
