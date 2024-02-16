@@ -3,7 +3,7 @@ import { RenderPass } from './render-pass';
 import type { RenderPassManager } from '../render-pass-manager';
 import {
   BlurShader,
-    CopyTransformMaterial,
+  CopyTransformMaterial,
   FLIP_Y_UV_TRANSFORM,
 } from '../shader-utility';
 import type {
