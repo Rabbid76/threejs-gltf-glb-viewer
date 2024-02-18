@@ -20,12 +20,16 @@ import { OutlineRenderer } from './outline-renderer';
 import type { DebugPass } from './pass/debug-pass';
 import type { LightSource } from './light-source-detection';
 import {
+  mapCustomShadingParameters,
   mergeRendererParameters,
   getInteractionParameters,
   getShadingParameters,
+  SCENE_SHADING_TYPES,
 } from './shading-settings';
-import { SCENE_SHADING_TYPES } from './shading-settings';
-import type { SceneShadingType } from './shading-settings';
+import type {
+  CustomShadingParameters,
+  SceneShadingType,
+} from './shading-settings';
 import {
   DepthWriteRenderCache,
   RenderCacheManager,
@@ -33,7 +37,7 @@ import {
 } from './render-cache';
 import { RenderPassManager } from './render-pass-manager';
 import type { SceneRenderPass } from './pass/scene-render-pass';
-import type { Enumify } from '../utils/types';
+import type { Enumify, Nullable } from '../utils/types';
 import type {
   Box3,
   Camera,
@@ -102,7 +106,7 @@ export class SceneRenderer {
   public outputColorSpace = '';
   public toneMapping = '';
   public environmentLights = false;
-  public movingCamera: boolean = false;
+  public enableObjectSelection: boolean = true;
   public groundLevel: number = 0;
   public uiInteractionMode: boolean = false;
   public renderer: WebGLRenderer;
@@ -117,10 +121,10 @@ export class SceneRenderer {
   public selectedObjects: Object3D[] = [];
   private _copyMaterial?: CopyTransformMaterial;
   public readonly groundGroup: Group = new Group();
-
   private _shadingType: SceneShadingType = SCENE_SHADING_TYPES.DEFAULT;
   private _qualityLevel: QualityLevel = QUALITY_LEVELS.HIGHEST;
   private _qualityMap: QualityMap = new Map<QualityLevel, any>();
+  private _customShadingParameters: Nullable<CustomShadingParameters> = null;
 
   public get sceneRenderPass(): SceneRenderPass {
     return this._renderPassManager.sceneRenderPass;
@@ -230,18 +234,25 @@ export class SceneRenderer {
     this.applyCurrentParameters();
   }
 
-  public setQualityLevel(_qualityLevel: QualityLevel): void {
-    if (this._qualityLevel === _qualityLevel) {
+  public setQualityLevel(qualityLevel: QualityLevel): void {
+    if (this._qualityLevel === qualityLevel) {
       return;
     }
     if (this._qualityMap.has(this._qualityLevel)) {
-      this._qualityLevel = _qualityLevel;
+      this._qualityLevel = qualityLevel;
     }
     this.applyCurrentParameters();
   }
 
-  public setQualityMap(_qualityMap: QualityMap) {
-    this._qualityMap = _qualityMap;
+  public setQualityMap(qualityMap: QualityMap) {
+    this._qualityMap = qualityMap;
+    this.applyCurrentParameters();
+  }
+
+  public setCustomShadingParameters(
+    customShadingParameters: CustomShadingParameters
+  ) {
+    this._customShadingParameters = customShadingParameters;
     this.applyCurrentParameters();
   }
 
@@ -259,6 +270,11 @@ export class SceneRenderer {
     );
     if (uiInteractionParameters) {
       parameterArray.push(uiInteractionParameters);
+    }
+    if (this._customShadingParameters) {
+      parameterArray.push(
+        mapCustomShadingParameters(this._customShadingParameters)
+      );
     }
     if (parameterArray.length > 0) {
       const parameters = mergeRendererParameters(...parameterArray);
@@ -460,7 +476,7 @@ export class SceneRenderer {
     this.outlineRenderer.updateOutline(
       scene,
       camera,
-      this.movingCamera ? [] : this.selectedObjects
+      this.enableObjectSelection ? this.selectedObjects : []
     );
     this._renderPassManager.updatePasses(scene, camera);
     this._renderPassManager.renderPasses(this.renderer);

@@ -153,6 +153,7 @@ export class RenderPassManager {
       this,
       this._sceneRenderer.width,
       this._sceneRenderer.height,
+      this._maxSamples,
       {}
     );
     this._screenSpaceShadowMapPass = new ScreenSpaceShadowMapPass(

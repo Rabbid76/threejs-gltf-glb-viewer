@@ -15,15 +15,12 @@ import type {
 } from 'three';
 import {
   DepthTexture,
-  DepthStencilFormat,
   Matrix4,
-  NearestFilter,
   NoBlending,
   PerspectiveCamera,
   RGBAFormat,
   ShaderMaterial,
   UniformsUtils,
-  UnsignedInt248Type,
   Vector2,
   Vector3,
   WebGLRenderTarget,
@@ -70,6 +67,7 @@ export interface GroundReflectionConstructorParameters {
 export class GroundReflectionPass extends RenderPass {
   private _width: number;
   private _height: number;
+  private _samples: number;
   public parameters: GroundReflectionParameters;
   public reflectionFadeInScale: number = 1;
   private _reflectionRenderTarget?: WebGLRenderTarget;
@@ -101,11 +99,13 @@ export class GroundReflectionPass extends RenderPass {
     renderPassManager: RenderPassManager,
     width: number,
     height: number,
+    samples: number,
     parameters: GroundReflectionConstructorParameters
   ) {
     super(renderPassManager);
     this._width = width;
     this._height = height;
+    this._samples = samples ?? 1;
     this.parameters = {
       enabled: false,
       intensity: 0.25,
@@ -138,11 +138,8 @@ export class GroundReflectionPass extends RenderPass {
     const additionalParameters: any = {};
     if (createDepthTexture) {
       const depthTexture = new DepthTexture(_width, _height);
-      depthTexture.format = DepthStencilFormat;
-      depthTexture.type = UnsignedInt248Type;
-      additionalParameters.minFilter = NearestFilter;
-      additionalParameters.magFilter = NearestFilter;
       additionalParameters.depthTexture = depthTexture;
+      additionalParameters.samples = this._samples;
     } else {
       additionalParameters.samples = 1;
     }

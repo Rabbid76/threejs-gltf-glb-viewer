@@ -2,8 +2,9 @@ import { EnvironmentSceneGenerator } from './environment-definition';
 import type { BufferGeometry, Material } from 'three';
 import type { Enumify } from '../utils/types';
 import {
-  AmbientLight,
   BoxGeometry,
+  Color,
+  CylinderGeometry,
   Mesh,
   MeshBasicMaterial,
   Scene,
@@ -58,6 +59,7 @@ export class DefaultEnvironmentScene extends Scene {
   private _ambientLightIntensity: number;
   private _colorVariation: number;
   private _lightGeometry: BufferGeometry;
+  private _reflectorLightGeometry: BufferGeometry;
 
   constructor(parameters: DefaultEnvironmentSceneParameters = {}) {
     super();
@@ -68,10 +70,15 @@ export class DefaultEnvironmentScene extends Scene {
       parameters?.sidLightIntensity || parameters?.lightIntensity || 1.0;
     this._sideReflectorIntensity =
       parameters?.sidLightIntensity || parameters?.lightIntensity || 1.0;
-    this._ambientLightIntensity = parameters?.ambientLightIntensity || 0.25;
+    const defaultAmbientIntensity =
+      this._type === DEFAULT_ENVIRONMENT_SCENE_TYPES.FRONT ? 0.7 : 0;
+    this._ambientLightIntensity =
+      parameters?.ambientLightIntensity || defaultAmbientIntensity;
     this._colorVariation = parameters?.colorVariation || 0.5;
     this._lightGeometry = new BoxGeometry();
     this._lightGeometry.deleteAttribute('uv');
+    this._reflectorLightGeometry = new CylinderGeometry(0.7, 0.4, 2, 32);
+    this._reflectorLightGeometry.deleteAttribute('uv');
     this.generateScene(this);
   }
 
@@ -101,16 +108,15 @@ export class DefaultEnvironmentScene extends Scene {
   }
 
   private _createAllAroundSceneLight(scene: Scene) {
-    const ambientLight = new AmbientLight(0xffffff);
-    ambientLight.intensity = this._ambientLightIntensity;
-    this.add(ambientLight);
+    const ali = this._ambientLightIntensity;
+    this.background = new Color(ali, ali, ali);
     this._createTopLight(scene, 6, 1);
     for (let i = 0; i < 6; i++) {
       const azimuthAngleInRad = (i * Math.PI * 2.0) / 6.0;
       const x = Math.sin(azimuthAngleInRad);
       const z = Math.cos(azimuthAngleInRad);
       if (i % 2 === 0) {
-        this._createReflector(scene, new Vector2(x, z), 3, 1, 1);
+        this._createReflector(scene, new Vector2(x, z), 3, 1, 0.8, 0.2);
       } else {
         this._createSideLight(
           scene,
@@ -126,16 +132,15 @@ export class DefaultEnvironmentScene extends Scene {
   }
 
   private _createFrontSceneLight(scene: Scene) {
-    const ambientLight = new AmbientLight(0xffffff);
-    ambientLight.intensity = this._ambientLightIntensity;
-    this.add(ambientLight);
-    this._createTopLight(scene, 5, 0.5);
+    const ali = this._ambientLightIntensity;
+    this.background = new Color(ali, ali, ali);
+    this._createTopLight(scene, 10, 0.7);
     for (let i = 0; i < 6; i++) {
       const azimuthAngleInRad = (i * Math.PI * 2.0) / 6.0;
       const x = Math.sin(azimuthAngleInRad);
       const z = Math.cos(azimuthAngleInRad);
       if (i === 0) {
-        this._createReflector(scene, new Vector2(x, z), 3, 0.8, 0.4);
+        this._createReflector(scene, new Vector2(x, z), 1.1, 0.6, 0.8, -0.4);
         for (let j = 0; j < 2; j++) {
           const tangentialAngleInRad =
             ((i - 0.3 + j * 0.6) * Math.PI * 2.0) / 6.0;
@@ -145,14 +150,14 @@ export class DefaultEnvironmentScene extends Scene {
             scene,
             new Vector2(x0, z0),
             (i - 1) / 2,
-            24,
+            50,
             1.2,
-            1,
+            0.7,
             0.8
           );
         }
       } else {
-        this._createReflector(scene, new Vector2(x, z), 5, 0.8, 1);
+        this._createReflector(scene, new Vector2(x, z), 1.1, 0.7, 1.4, 0);
       }
     }
   }
@@ -213,15 +218,15 @@ export class DefaultEnvironmentScene extends Scene {
     direction: Vector2,
     intensity: number,
     scale: number,
-    scaleZ: number
+    scaleZ: number,
+    level: number
   ) {
     const light = new Mesh(
-      this._lightGeometry,
+      this._reflectorLightGeometry,
       this._createAreaLightMaterial(intensity * this._sideReflectorIntensity)
     );
-    light.position.set(direction.x * 15.0, 5.0 * scaleZ, direction.y * 15.0);
-    light.rotation.set(0, Math.atan2(direction.x, direction.y), 0);
-    light.scale.set(10 * scale, 12 * scale * scaleZ, 10 * scale);
+    light.position.set(direction.x * 15.0, 10 * level, direction.y * 15.0);
+    light.scale.set(10 * scale, 10 * scaleZ, 10 * scale);
     scene.add(light);
   }
 }
