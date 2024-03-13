@@ -12,7 +12,10 @@ import { SHADOW_BLUR_TYPES } from './pass/shadow-and-ao-pass';
 import { SceneRenderPass } from './pass/scene-render-pass';
 import type { SceneRenderer, SceneRendererParameters } from './scene-renderer';
 import type { Camera, Scene, WebGLRenderer } from 'three';
-import { Vector2 } from 'three';
+import type { ThreeObject3d } from './render-cache';
+import { PostProcessingMaterialPlugin } from './materials/postprocessing-material-plugin';
+import { MeshPhysicalMaterial, Vector2 } from 'three';
+import type { Mesh, Object3D } from 'three';
 
 interface _passUpdateStates {
   updateGBuffer: boolean;
@@ -30,6 +33,7 @@ interface DynamicPassUpdateRequirements {
 }
 
 export class RenderPassManager {
+  public materialsNeedUpdate: boolean = true;
   private _sceneRenderer: SceneRenderer;
   private _passRenderer: PassRenderer = new PassRenderer();
   private _sceneRenderPass: SceneRenderPass;
@@ -211,7 +215,7 @@ export class RenderPassManager {
     this._sceneRenderer.shadowAndAoGroundPlane.setVisibility(visible);
   }
 
-  public updatePasses(scene: Scene, camera: Camera) {
+  public updatePasses(renderer: WebGLRenderer, scene: Scene, camera: Camera) {
     this._scene = scene;
     this._camera = camera;
     this._cameraChanged = this._cameraUpdate.changed(camera);
@@ -224,6 +228,7 @@ export class RenderPassManager {
     this._updateShadowAndAoPass(updateRequirements);
     this._updateOutlinePass();
     this._updateDebugPass();
+    this._updateMaterials(renderer, scene);
   }
 
   private _evaluateIfShadowAndAoUpdateIsNeeded(): DynamicPassUpdateRequirements {
@@ -285,7 +290,8 @@ export class RenderPassManager {
       );
     }
     this._sceneRenderPass.drawGround =
-      this._bakedGroundContactShadowPass.parameters.enabled;
+      this._bakedGroundContactShadowPass.parameters.enabled ||
+      this._shadowAndAoPass.parameters.applyToMaterial;
   }
 
   private _updateGBufferPass(
@@ -398,21 +404,68 @@ export class RenderPassManager {
     this._passUpdateStates.updateDebugPass = true;
   }
 
+  private _updateMaterials(renderer: WebGLRenderer, scene: Scene) {
+    if (!this.materialsNeedUpdate) {
+      return;
+    }
+    const devicePixelRatio: number = renderer.getPixelRatio();
+    this.materialsNeedUpdate = false;
+    scene.traverse((object: Object3D) => {
+      if ((object as ThreeObject3d).isMesh) {
+        const material = (object as Mesh).material;
+        if (material instanceof MeshPhysicalMaterial) {
+          this._updateMaterial(object as Mesh, material, devicePixelRatio);
+        }
+      }
+    });
+  }
+
+  private _updateMaterial(
+    object: Mesh,
+    material: MeshPhysicalMaterial,
+    devicePixelRatio: number
+  ) {
+    const applyAoToMaterial =
+      this._shadowAndAoPass.parameters.applyToMaterial &&
+      (material.name === 'ShadowGroundPlaneMaterial' ||
+        (object.receiveShadow &&
+          (!material.transparent || material.alphaTest >= 0.9)));
+    const plugIn = PostProcessingMaterialPlugin.addPlugin(material);
+    if (plugIn) {
+      plugIn.applyAoAndShadowToAlpha =
+        material.name === 'ShadowGroundPlaneMaterial';
+      plugIn.aoPassMapIntensity =
+        this._shadowAndAoPass.parameters.aoIntensity * 2;
+      plugIn.shPassMapIntensity =
+        this._shadowAndAoPass.parameters.shadowIntensity * 2;
+      plugIn.aoPassMapScale = 1 / devicePixelRatio;
+      plugIn.aoPassMap = applyAoToMaterial
+        ? this._shadowAndAoPass.finalTexture
+        : null;
+    }
+  }
+
   public renderPasses(renderer: WebGLRenderer): void {
     renderer.setRenderTarget(null);
     this._bakedGroundContactShadowPass.renderPass(renderer);
-    this._sceneRenderPass.renderPass(renderer);
     if (this._passUpdateStates.updateGBuffer) {
       this._gBufferRenderPass.renderPass(renderer);
-    }
-    if (this._passUpdateStates.updateGroundReflection) {
-      this._groundReflectionPass.renderPass(renderer);
     }
     if (this._passUpdateStates.updateScreenSpaceShadow) {
       this._screenSpaceShadowMapPass.renderPass(renderer);
     }
     if (this._passUpdateStates.updateShadowAndAoPass) {
       this._shadowAndAoPass.renderPass(renderer);
+    }
+    this._sceneRenderPass.renderPass(renderer);
+    if (this._passUpdateStates.updateGroundReflection) {
+      this._groundReflectionPass.renderPass(renderer);
+    }
+    if (
+      this._passUpdateStates.updateShadowAndAoPass &&
+      !this._shadowAndAoPass.parameters.applyToMaterial
+    ) {
+      this._shadowAndAoPass.renderToTarget(renderer);
     }
     if (this._passUpdateStates.updateOutlinePass) {
       this._outlinePass?.renderPass(renderer);

@@ -266,6 +266,7 @@ export class GroundReflectionPass extends RenderPass {
     const renderTargetBackup = renderer.getRenderTarget();
     if (renderTarget) {
       renderer.setRenderTarget(renderTarget);
+      this.passRenderer.clear(renderer, renderTarget, 0x000000, 0);
     }
     renderer.render(scene, groundReflectionCamera);
     if (renderTarget) {

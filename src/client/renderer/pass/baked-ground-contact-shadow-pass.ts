@@ -281,12 +281,16 @@ export class BakedGroundContactShadowPass extends RenderPass {
     this.shadowGroundPlane.setVisibilityLayers(visible);
   }
 
-  public renderPass(_renderer: WebGLRenderer): void {
+  public renderPass(renderer: WebGLRenderer): void {
     this._groundContactCamera.updateCameraHelper(
       this.parameters.cameraHelper,
       this.scene
     );
     if (!this.parameters.enabled) {
+      if (this.needsUpdate) {
+        this.needsUpdate = false;
+        this.passRenderer.clear(renderer, this.renderTarget, 0x000000, 1.0);
+      }
       return;
     }
     const maxIterations = 10;

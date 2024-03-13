@@ -254,6 +254,7 @@ export class SceneRenderer {
   ) {
     this._customShadingParameters = customShadingParameters;
     this.applyCurrentParameters();
+    this.requestUpdateOfPasses();
   }
 
   public applyCurrentParameters() {
@@ -283,8 +284,17 @@ export class SceneRenderer {
     }
   }
 
+  public requestUpdateOfPasses() {
+    this.gBufferRenderPass.needsUpdate = true;
+    this.screenSpaceShadowMapPass.needsUpdate = true;
+    this.shadowAndAoPass.needsUpdate = true;
+    this.shadowAndAoPass.softShadowPass.needsUpdate = true;
+    this._renderPassManager.materialsNeedUpdate = true;
+  }
+
   public clearCache() {
     this.renderCacheManager.clearCache();
+    this._renderPassManager.materialsNeedUpdate = true;
   }
 
   public forceShadowUpdates(updateBakedGroundShadow: boolean): void {
@@ -478,7 +488,7 @@ export class SceneRenderer {
       camera,
       this.enableObjectSelection ? this.selectedObjects : []
     );
-    this._renderPassManager.updatePasses(scene, camera);
+    this._renderPassManager.updatePasses(this.renderer, scene, camera);
     this._renderPassManager.renderPasses(this.renderer);
     scene.remove(this.groundGroup);
   }

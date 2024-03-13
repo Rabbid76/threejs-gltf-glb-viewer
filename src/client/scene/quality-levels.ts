@@ -47,7 +47,7 @@ const screenSpaceShadowMapParameters = {
   enableGroundBoundary: false,
   directionalDependency: 1.0,
   directionalExponent: 1.0,
-  groundBoundary: 0.0,
+  groundBoundary: 1.0,
   fadeOutDistance: 0.2,
   fadeOutBlur: 5.0,
 };

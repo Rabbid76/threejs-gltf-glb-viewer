@@ -1,5 +1,5 @@
 import type { Texture } from 'three';
-import { Mesh, MeshBasicMaterial, PlaneGeometry } from 'three';
+import { Mesh, MeshPhysicalMaterial, PlaneGeometry } from 'three';
 
 export interface ShadowGroundPlaneParameters {
   opacity?: number;
@@ -7,22 +7,23 @@ export interface ShadowGroundPlaneParameters {
 }
 
 export class ShadowGroundPlane extends Mesh {
-  public static alphaMap: boolean = false;
+  public static alphaMap: boolean = true;
 
   constructor(
     shadowMap: Texture | null,
     parameters?: ShadowGroundPlaneParameters
   ) {
-    const planeMaterial = new MeshBasicMaterial({
-      transparent: true,
-      depthWrite: false,
-      //side: DoubleSide
-    });
-    if (ShadowGroundPlane.alphaMap) {
-      planeMaterial.color.set(0x000000);
-    }
-    planeMaterial.polygonOffset = true;
-    super(new PlaneGeometry(1, 1, 10, 10), planeMaterial);
+    super(
+      new PlaneGeometry(1, 1, 10, 10),
+      new MeshPhysicalMaterial({
+        color: ShadowGroundPlane.alphaMap ? 0x000000 : 0xffffff,
+        transparent: true,
+        depthWrite: false,
+        //side: DoubleSide,
+        polygonOffset: true,
+        name: 'ShadowGroundPlaneMaterial',
+      })
+    );
     this.name = 'ShadowGroundPlane';
     this.userData.isFloor = true;
     this.renderOrder = 1;
@@ -48,7 +49,7 @@ export class ShadowGroundPlane extends Mesh {
   }
 
   public setDepthWrite(write: boolean) {
-    const shadowGroundMaterial = this.material as MeshBasicMaterial;
+    const shadowGroundMaterial = this.material as MeshPhysicalMaterial;
     shadowGroundMaterial.depthWrite = write;
     shadowGroundMaterial.transparent = !write;
     shadowGroundMaterial.needsUpdate = true;
@@ -61,16 +62,21 @@ export class ShadowGroundPlane extends Mesh {
   }
 
   public setShadowMap(shadowMap: Texture | null) {
-    const shadowGroundMaterial = this.material as MeshBasicMaterial;
-    shadowGroundMaterial.map = shadowMap;
+    const shadowGroundMaterial = this.material as MeshPhysicalMaterial;
     if (ShadowGroundPlane.alphaMap) {
       shadowGroundMaterial.alphaMap = shadowMap;
+      shadowGroundMaterial.map = null;
+      shadowGroundMaterial.color.set(0x000000);
+    } else {
+      shadowGroundMaterial.alphaMap = null;
+      shadowGroundMaterial.map = shadowMap;
+      shadowGroundMaterial.color.set(0xffffff);
     }
     shadowGroundMaterial.needsUpdate = true;
   }
 
   public updateMaterial(parameters: ShadowGroundPlaneParameters) {
-    const shadowGroundMaterial = this.material as MeshBasicMaterial;
+    const shadowGroundMaterial = this.material as MeshPhysicalMaterial;
     if (
       parameters.opacity &&
       shadowGroundMaterial.opacity !== parameters.opacity

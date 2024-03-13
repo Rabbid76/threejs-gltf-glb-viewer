@@ -71,7 +71,7 @@ export class DefaultEnvironmentScene extends Scene {
     this._sideReflectorIntensity =
       parameters?.sidLightIntensity || parameters?.lightIntensity || 1.0;
     const defaultAmbientIntensity =
-      this._type === DEFAULT_ENVIRONMENT_SCENE_TYPES.FRONT ? 0.7 : 0;
+      this._type === DEFAULT_ENVIRONMENT_SCENE_TYPES.FRONT ? 0.3 : 0;
     this._ambientLightIntensity =
       parameters?.ambientLightIntensity || defaultAmbientIntensity;
     this._colorVariation = parameters?.colorVariation || 0.5;
@@ -134,7 +134,7 @@ export class DefaultEnvironmentScene extends Scene {
   private _createFrontSceneLight(scene: Scene) {
     const ali = this._ambientLightIntensity;
     this.background = new Color(ali, ali, ali);
-    this._createTopLight(scene, 10, 0.7);
+    this._createTopLight(scene, 6, 0.7);
     for (let i = 0; i < 6; i++) {
       const azimuthAngleInRad = (i * Math.PI * 2.0) / 6.0;
       const x = Math.sin(azimuthAngleInRad);

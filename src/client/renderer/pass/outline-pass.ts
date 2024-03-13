@@ -24,6 +24,13 @@ import {
   WebGLRenderTarget,
 } from 'three';
 
+interface ThreeObject3d {
+  isLine?: boolean;
+  isMesh?: boolean;
+  isPoints?: boolean;
+  isSprite?: boolean;
+}
+
 export interface OutlinePassParameters {
   downSampleRatio?: number;
   edgeDetectionFxaa?: boolean;
@@ -32,6 +39,7 @@ export interface OutlinePassParameters {
 export class OutlinePass extends RenderPass {
   public static BlurDirectionX = new Vector2(1.0, 0.0);
   public static BlurDirectionY = new Vector2(0.0, 1.0);
+  public static highlightLines: boolean = true;
   public renderScene: Scene;
   public renderCamera: Camera;
   public selectedObjects: Object3D[];
@@ -261,64 +269,56 @@ export class OutlinePass extends RenderPass {
     this.renderTargetFxaaBuffer?.setSize(width, height);
   }
 
+  private _canBeHighlighted(object: Object3D) {
+    return (
+      (object as ThreeObject3d).isMesh ||
+      (OutlinePass.highlightLines && (object as ThreeObject3d).isLine)
+    );
+  }
+
   private _changeVisibilityOfSelectedObjects(bVisible: boolean) {
     const cache = this._visibilityCache;
-
-    function gatherSelectedMeshesCallBack(object: Object3D) {
-      // @ts-ignore -- wrong typing isMesh is there
-      if (object.isMesh) {
-        if (bVisible === true) {
-          object.visible = cache.get(object) as boolean;
-        } else {
-          cache.set(object, object.visible);
-          object.visible = bVisible;
-        }
-      }
-    }
-
     this.selectedObjects.forEach((selectedObject) =>
-      selectedObject.traverse(gatherSelectedMeshesCallBack)
+      selectedObject.traverse((object: Object3D) => {
+        if (this._canBeHighlighted(object)) {
+          if (bVisible === true) {
+            object.visible = cache.get(object) as boolean;
+          } else {
+            cache.set(object, object.visible);
+            object.visible = bVisible;
+          }
+        }
+      })
     );
   }
 
   private _changeVisibilityOfNonSelectedObjects(bVisible: boolean) {
     const cache = this._visibilityCache;
     const selectedMeshes: Mesh[] = [];
-
-    function gatherSelectedMeshesCallBack(object: Object3D) {
-      // @ts-ignore -- wrong typing isMesh is there
-      if (object.isMesh) {
-        selectedMeshes.push(object as Mesh);
-      }
-    }
-
     this.selectedObjects.forEach((selectedObject) =>
-      selectedObject.traverse(gatherSelectedMeshesCallBack)
+      selectedObject.traverse((object: Object3D) => {
+        if (this._canBeHighlighted(object)) {
+          selectedMeshes.push(object as Mesh);
+        }
+      })
     );
 
-    function VisibilityChangeCallBack(object: Object3D) {
-      // @ts-ignore -- wrong typing isMesh and isSprite is there
-      if (object.isMesh || object.isSprite) {
-        // only meshes and sprites are supported by OutlinePass
-
+    this.renderScene.traverse((object: Object3D) => {
+      if (
+        this._canBeHighlighted(object) ||
+        (object as ThreeObject3d).isSprite
+      ) {
         const bFound = selectedMeshes.some(
           (selectedMesh) => selectedMesh.id === object.id
         );
         if (bFound === false) {
           const visibility = object.visible;
-
           if (bVisible === false || cache.get(object) === true) {
             object.visible = bVisible;
           }
-
           cache.set(object, visibility);
         }
-
-        // @ts-ignore -- wrong typing isPoints and isLine is there
-      } else if (object.isPoints || object.isLine) {
-        // the visibilty of points and lines is always set to false in order to
-        // not affect the outline computation
-
+      } else if ((object as ThreeObject3d).isPoints) {
         if (bVisible === true) {
           object.visible = cache.get(object) as boolean; // restore
         } else {
@@ -326,9 +326,7 @@ export class OutlinePass extends RenderPass {
           object.visible = bVisible;
         }
       }
-    }
-
-    this.renderScene.traverse(VisibilityChangeCallBack);
+    });
   }
 
   private _updateTextureMatrix() {

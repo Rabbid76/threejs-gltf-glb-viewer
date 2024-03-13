@@ -53,6 +53,7 @@ export interface ShadowParameters {
 
 export interface ShadowAndAoPassParameters {
   enabled: boolean;
+  applyToMaterial: boolean;
   aoIntensity: number;
   shadowIntensity: number;
   aoOnGround: boolean;
@@ -70,6 +71,7 @@ export const defaultShadowParameters: ShadowParameters = {
 
 export const defaultPassParameters = {
   enabled: true,
+  applyToMaterial: true,
   aoIntensity: 0.5,
   shadowIntensity: 0.35,
   aoOnGround: true,
@@ -80,6 +82,7 @@ export const defaultPassParameters = {
 
 export interface ShadowAndAoPassConstructorParameters {
   enabled?: boolean;
+  applyToMaterial?: boolean;
   aoIntensity?: number;
   shadowIntensity?: number;
   aoOnGround?: boolean;
@@ -109,6 +112,7 @@ export class ShadowAndAoPass extends RenderPass {
   );
   public parameters: ShadowAndAoPassParameters;
   public needsUpdate: boolean = true;
+  public renderToRenderTarget: boolean = false;
   public shadowAndAoPassSettings: ShadowAndAoPassSettings = {
     shadowMapTexture: null,
     shadowBlurType: SHADOW_BLUR_TYPES.FULL,
@@ -127,6 +131,8 @@ export class ShadowAndAoPass extends RenderPass {
   private _copyMaterial: CopyTransformMaterial;
   private _blendMaterial: CopyTransformMaterial;
   private _cameraUpdate: CameraUpdate = new CameraUpdate();
+  private _finalTexture: Texture | null = null;
+  private _onlyHardShadow: boolean = false;
 
   public get aoAndSoftShadowRenderTarget(): WebGLRenderTarget {
     this._aoAndSoftShadowRenderTarget =
@@ -244,6 +250,10 @@ export class ShadowAndAoPass extends RenderPass {
     return this.denoisePass ? this.denoisePass.texture : null;
   }
 
+  public get finalTexture(): Texture | null {
+    return this._finalTexture;
+  }
+
   constructor(
     renderPassManager: RenderPassManager,
     width: number,
@@ -257,6 +267,8 @@ export class ShadowAndAoPass extends RenderPass {
     this._samples = samples;
     this.parameters = {
       enabled: parameters?.enabled ?? defaultPassParameters.enabled,
+      applyToMaterial:
+        parameters?.applyToMaterial ?? defaultPassParameters.applyToMaterial,
       aoIntensity: parameters?.aoIntensity ?? defaultPassParameters.aoIntensity,
       shadowIntensity:
         parameters?.shadowIntensity ?? defaultPassParameters.shadowIntensity,
@@ -310,6 +322,9 @@ export class ShadowAndAoPass extends RenderPass {
   public updateParameters(parameters: ShadowAndAoPassParameters) {
     if (parameters.enabled !== undefined) {
       this.parameters.enabled = parameters.enabled;
+    }
+    if (parameters.applyToMaterial !== undefined) {
+      this.parameters.applyToMaterial = parameters.applyToMaterial;
     }
     if (parameters.aoIntensity !== undefined) {
       this.parameters.aoIntensity = parameters.aoIntensity;
@@ -450,11 +465,11 @@ export class ShadowAndAoPass extends RenderPass {
         this.shadowAndAoPassSettings.shadowFadeInMix
       );
     }
-    this._renderToTarget(
-      renderer,
-      finalTexture,
-      renderConditions.onlyHardShadow
-    );
+    this._finalTexture = finalTexture;
+    this._onlyHardShadow = renderConditions.onlyHardShadow;
+    if (this.renderToRenderTarget) {
+      this.renderToTarget(renderer);
+    }
   }
 
   private _setRenderState(): boolean {
@@ -596,19 +611,17 @@ export class ShadowAndAoPass extends RenderPass {
     return denoisePass.texture;
   }
 
-  private _renderToTarget(
-    renderer: WebGLRenderer,
-    finalTexture: Texture | null,
-    onlyHardShadow: boolean
-  ): void {
-    const redChannel = onlyHardShadow
+  public renderToTarget(renderer: WebGLRenderer): void {
+    const redChannel = this._onlyHardShadow
       ? this.parameters.shadowIntensity
       : this.parameters.aoIntensity;
-    const greenChannel = onlyHardShadow ? 0 : this.parameters.shadowIntensity;
+    const greenChannel = this._onlyHardShadow
+      ? 0
+      : this.parameters.shadowIntensity;
     this.passRenderer.renderScreenSpace(
       renderer,
       this._copyMaterial.update({
-        texture: finalTexture,
+        texture: this._finalTexture,
         blending: CustomBlending,
         colorTransform: interpolationMatrix(redChannel, greenChannel, 0, 1),
         multiplyChannels: 1,

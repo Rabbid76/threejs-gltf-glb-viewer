@@ -184,10 +184,7 @@ export class SceneRendererGUI {
 
   private _addShadowAndAoGUI(gui: GUI, updateCallback: () => void): void {
     const updateParameters = (): void => {
-      this._sceneRenderer.gBufferRenderPass.needsUpdate = true;
-      this._sceneRenderer.screenSpaceShadowMapPass.needsUpdate = true;
-      this._sceneRenderer.shadowAndAoPass.needsUpdate = true;
-      this._sceneRenderer.shadowAndAoPass.softShadowPass.needsUpdate = true;
+      this._sceneRenderer.requestUpdateOfPasses();
       updateCallback();
     };
     const parameters = this._sceneRenderer.shadowAndAoPass.parameters;
@@ -197,6 +194,10 @@ export class SceneRendererGUI {
     const aoParameters = parameters.ao;
     const denoiseParameters = parameters.poissonDenoise;
     gui.add<any>(parameters, 'enabled').onChange(() => updateParameters());
+    gui.add<any>(parameters, 'applyToMaterial').onChange(() => {
+      updateParameters();
+      this._sceneRenderer.clearCache();
+    });
     const aoTypes = new Map<string, AoAlgorithmType>([
       ['none', null],
       ['SSAO', AO_ALGORITHMS.SSAO],
@@ -353,7 +354,7 @@ export class SceneRendererGUI {
     };
     const parameters =
       this._sceneRenderer.parameters.bakedGroundContactShadowParameters;
-    gui.add<any>(parameters, 'enabled');
+    gui.add<any>(parameters, 'enabled').onChange(() => updateParameters());
     gui.add<any>(parameters, 'cameraHelper').onChange(() => updateParameters());
     gui.add<any>(parameters, 'alwaysUpdate');
     gui.add<any>(parameters, 'fadeIn');

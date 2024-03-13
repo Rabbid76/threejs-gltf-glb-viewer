@@ -12,7 +12,7 @@ export interface RenderCache {
   onAfterRender(): void;
 }
 
-interface ThreeObject3d {
+export interface ThreeObject3d {
   isLine?: boolean;
   isPoints?: boolean;
   isMesh?: boolean;
@@ -120,7 +120,7 @@ export class RenderCacheManager {
 }
 
 export class VisibilityRenderCache implements RenderCache {
-  private _visibilityCache = new Map();
+  private _visibilityCache: Map<Object3D, boolean> = new Map();
   private _isObjectInvisible?: (object: any) => boolean;
 
   constructor(isObjectInvisible?: (object: any) => boolean) {
@@ -238,12 +238,21 @@ export abstract class ObjectRenderCache implements RenderCache {
   public onBeforeRender(): void {
     this._objectCache.forEach((data: ObjectCacheEntry, object: Object3D) => {
       if (object instanceof Mesh) {
-        // update the cache if the material of the object has changed
+        // update the cache if properties of the object have changed
         if (
           object.material !== data.originalObjectData.material &&
           object.material !== data.updateObjectData.material
         ) {
           data.originalObjectData.material = object.material;
+        }
+        if (object.receiveShadow !== data.originalObjectData.receiveShadow) {
+          data.originalObjectData.receiveShadow = object.receiveShadow;
+        }
+        if (object.castShadow !== data.originalObjectData.castShadow) {
+          data.originalObjectData.castShadow = object.castShadow;
+        }
+        if (object.visible !== data.originalObjectData.visible) {
+          data.originalObjectData.visible = object.visible;
         }
       }
       this._updateObject(object, data.updateObjectData);
