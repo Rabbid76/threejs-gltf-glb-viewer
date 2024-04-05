@@ -21,12 +21,12 @@
   "author": "Rabbid76",
   "license": "ISC",
   "devDependencies": {
-    "@types/dat.gui": "^0.7.12",
+    "@types/dat.gui": "^0.7.13",
     "@types/express": "^4.17.21",
-    "@types/node": "^20.11.30",
-    "@types/three": "^0.162.0",
-    "@typescript-eslint/eslint-plugin": "7.4.0",
-    "@typescript-eslint/parser": "7.4.0",
+    "@types/node": "^20.12.4",
+    "@types/three": "^0.163.0",
+    "@typescript-eslint/eslint-plugin": "7.5.0",
+    "@typescript-eslint/parser": "7.5.0",
     "axios": "^1.6.8",
     "copyfiles": "^2.4.1",
     "dat.gui": "^0.7.9",
@@ -41,7 +41,7 @@
     "prettier": "3.2.5",
     "raw-loader": "^4.0.2",
     "ts-loader": "^9.5.1",
-    "typescript": "^5.4.3",
+    "typescript": "^5.4.4",
     "webpack": "^5.91.0",
     "webpack-cli": "^5.1.4",
     "webpack-dev-server": "^5.0.4",
@@ -50,6 +50,6 @@
   "dependencies": {
     "express": "^4.19.2",
     "lodash": "^4.17.21",
-    "three": "0.162.0"
+    "three": "0.163.0"
   }
 }
