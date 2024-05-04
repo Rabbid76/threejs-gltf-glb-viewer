@@ -174,7 +174,9 @@ export const _mapCustomShadowParameters = (
         parameters.bakedGroundContactShadowParameters.blurMax * 0.01;
     }
   } else {
-    parameters.bakedGroundContactShadowParameters.enabled = false;
+    if (customShadingParameters.shBakedOnGround !== undefined) {
+      parameters.bakedGroundContactShadowParameters.enabled = false;
+    }
     if (customShadingParameters.shadowIntensity !== undefined) {
       parameters.shAndAoPassParameters.shadowIntensity = _clamp(
         customShadingParameters.shadowIntensity

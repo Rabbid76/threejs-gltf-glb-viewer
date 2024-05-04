@@ -73,6 +73,7 @@ const castGroundContactShadow = (object: any): boolean => {
 export class BakedGroundContactShadowPass extends RenderPass {
   public static addTestMesh: boolean = false;
   public shadowMapSize: number;
+  public limitPlaneSize: boolean = true;
   public parameters: BakedGroundContactShadowParameters;
   private _renderer: WebGLRenderer;
   public needsUpdate: boolean = true;
@@ -252,7 +253,10 @@ export class BakedGroundContactShadowPass extends RenderPass {
     this.parameters.planeSize =
       maxPlanSideLength +
       2 * Math.max(this._blurScale, this._shadowScale ?? 1, 1);
-    if (this.parameters.planeSize > this.parameters.maximumPlaneSize) {
+    if (
+      this.limitPlaneSize &&
+      this.parameters.planeSize > this.parameters.maximumPlaneSize
+    ) {
       this.parameters.planeSize = this.parameters.maximumPlaneSize;
       this._groundGroup.position.set(0, groundLevel ?? 0, 0);
     } else {

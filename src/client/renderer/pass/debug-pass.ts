@@ -5,6 +5,7 @@ import {
   ALPHA_RGBA,
   ALPHA_TRANSFORM,
   CopyTransformMaterial,
+  COLOR_COPY_BLEND_MODES,
   DEFAULT_TRANSFORM,
   DEFAULT_UV_TRANSFORM,
   FLIP_Y_UV_TRANSFORM,
@@ -23,6 +24,7 @@ import { Color, Matrix4, NoBlending, OrthographicCamera, Vector4 } from 'three';
 export class DebugPass extends RenderPass {
   private _environmentMapDecodeMaterial: EnvironmentMapDecodeMaterial;
   private _copyMaterial?: CopyTransformMaterial;
+  private _srgbToLinearCopyMaterial?: CopyTransformMaterial;
   private _depthRenderMaterial?: LinearDepthRenderMaterial;
   public debugOutput: string = '';
 
@@ -39,6 +41,7 @@ export class DebugPass extends RenderPass {
   public dispose(): void {
     this._depthRenderMaterial?.dispose();
     this._copyMaterial?.dispose();
+    this._srgbToLinearCopyMaterial?.dispose();
   }
 
   protected getCopyMaterial(
@@ -46,6 +49,20 @@ export class DebugPass extends RenderPass {
   ): ShaderMaterial {
     this._copyMaterial = this._copyMaterial ?? new CopyTransformMaterial();
     return this._copyMaterial.update(parameters);
+  }
+
+  protected getSrgbToLinearCopyMaterial(
+    parameters?: CopyTransformMaterialParameters
+  ): ShaderMaterial {
+    this._srgbToLinearCopyMaterial =
+      this._copyMaterial ??
+      new CopyTransformMaterial(
+        {},
+        COLOR_COPY_BLEND_MODES.ADDITIVE,
+        true,
+        true
+      );
+    return this._srgbToLinearCopyMaterial.update(parameters);
   }
 
   private _getDepthRenderMaterial(camera: Camera): LinearDepthRenderMaterial {
@@ -239,10 +256,24 @@ export class DebugPass extends RenderPass {
               this.renderPassManager.shadowAndAoPass.parameters.aoIntensity,
               this.renderPassManager.shadowAndAoPass.parameters.shadowIntensity,
               0,
-              1
+              0
             ),
-            colorBase: ZERO_RGBA,
+            colorBase: ALPHA_RGBA,
             multiplyChannels: 1,
+            uvTransform: DEFAULT_UV_TRANSFORM,
+          }),
+          null
+        );
+        break;
+      case 'materialao':
+        this.passRenderer.renderScreenSpace(
+          renderer,
+          this.getCopyMaterial({
+            texture: this.renderPassManager.aoPassMapTexture,
+            blending: NoBlending,
+            colorTransform: DEFAULT_TRANSFORM,
+            colorBase: ZERO_RGBA,
+            multiplyChannels: 0,
             uvTransform: DEFAULT_UV_TRANSFORM,
           }),
           null
@@ -251,7 +282,7 @@ export class DebugPass extends RenderPass {
       case 'groundreflection':
         this.passRenderer.renderScreenSpace(
           renderer,
-          this.getCopyMaterial({
+          this.getSrgbToLinearCopyMaterial({
             texture:
               this.renderPassManager.groundReflectionPass.reflectionRenderTarget
                 .texture,
@@ -267,7 +298,7 @@ export class DebugPass extends RenderPass {
       case 'groundreflectionfinal':
         this.passRenderer.renderScreenSpace(
           renderer,
-          this.getCopyMaterial({
+          this.getSrgbToLinearCopyMaterial({
             texture:
               this.renderPassManager.groundReflectionPass.intensityRenderTarget
                 .texture,

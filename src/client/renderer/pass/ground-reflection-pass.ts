@@ -5,6 +5,7 @@ import {
   BlurShader,
   CopyTransformMaterial,
   FLIP_Y_UV_TRANSFORM,
+  COLOR_COPY_BLEND_MODES,
 } from '../shader-utility';
 import type {
   Camera,
@@ -120,7 +121,12 @@ export class GroundReflectionPass extends RenderPass {
       renderTargetDownScale: 4,
       ...parameters,
     };
-    this._copyMaterial = new CopyTransformMaterial({});
+    this._copyMaterial = new CopyTransformMaterial(
+      {},
+      COLOR_COPY_BLEND_MODES.ADDITIVE,
+      true,
+      true
+    );
     this._updateCopyMaterial(null);
     this._reflectionIntensityMaterial = new GroundReflectionIntensityMaterial({
       width: this._width / this.parameters.renderTargetDownScale,
@@ -285,7 +291,7 @@ export class GroundReflectionPass extends RenderPass {
       renderer,
       this._reflectionIntensityMaterial.update({
         texture: this.reflectionRenderTarget.texture,
-        depthTexture: this.reflectionRenderTarget.depthTexture,
+        depthTexture: this.reflectionRenderTarget.depthTexture as Texture,
         camera: groundReflectionCamera,
         groundLevel: this.parameters.groundLevel,
         fadeOutDistance:
@@ -411,13 +417,18 @@ const glslGroundReflectionIntensityFragmentShader = `
     float viewZ = getViewZ(depth);
     vec4 worldPosition = inverseViewMatrix * vec4(getViewPosition(uv, depth, viewZ), 1.0);
     float distance = worldPosition.y - groundLevel;
-    vec4 fragColor = texture2D(tDiffuse, uv).rgba;
+    vec2 diffuseTextureSize = vec2(textureSize(tDiffuse, 0 ));
+    vec4 fragColor = texelFetch(tDiffuse, ivec2(uv * diffuseTextureSize), 0).rgba;
     #if LINEAR_TO_SRGB == 1
       fragColor.rgb = mix(fragColor.rgb * 12.92, 1.055 * pow(fragColor.rgb, vec3(0.41666)) - 0.055, step(0.0031308, fragColor.rgb));
     #endif
     float fadeOutAlpha = pow(clamp(1.0 - distance / fadeOutDistance, 0.0, 1.0), fadeOutExponent);
     fragColor.a *= fadeOutAlpha * step(depth, 0.9999);
-    gl_FragColor = fragColor;
+    #if PREMULTIPLIED_ALPHA == 1
+      gl_FragColor = vec4(fragColor.rgb * fragColor.a, fragColor.a);
+    #else
+      gl_FragColor = fragColor;
+    #endif
   }`;
 
 export interface GroundReflectionIntensityMaterialParameters {
@@ -448,7 +459,8 @@ export class GroundReflectionIntensityMaterial extends ShaderMaterial {
     },
     defines: {
       PERSPECTIVE_CAMERA: 1,
-      LINEAR_TO_SRGB: 1,
+      LINEAR_TO_SRGB: 0,
+      PREMULTIPLIED_ALPHA: 1,
     },
     vertexShader: glslGroundReflectionIntensityVertexShader,
     fragmentShader: glslGroundReflectionIntensityFragmentShader,

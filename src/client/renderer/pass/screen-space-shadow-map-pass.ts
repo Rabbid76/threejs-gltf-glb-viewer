@@ -31,6 +31,7 @@ import {
   MeshBasicMaterial,
   MeshPhongMaterial,
   MeshStandardMaterial,
+  NearestFilter,
   PCFShadowMap,
   PCFSoftShadowMap,
   RedFormat,
@@ -164,7 +165,12 @@ export class ScreenSpaceShadowMapPass extends RenderPass {
     this._shadowRenderTarget = new WebGLRenderTarget(
       this._viewportSize.x,
       this._viewportSize.y,
-      { samples, format: RedFormat }
+      {
+        samples,
+        format: RedFormat,
+        magFilter: NearestFilter,
+        minFilter: NearestFilter,
+      }
     );
   }
 

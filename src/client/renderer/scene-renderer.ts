@@ -257,6 +257,16 @@ export class SceneRenderer {
     this.requestUpdateOfPasses();
   }
 
+  public setQualityMapAndShadingParameters(
+    qualityMap: QualityMap,
+    customShadingParameters: CustomShadingParameters
+  ) {
+    this._qualityMap = qualityMap;
+    this._customShadingParameters = customShadingParameters;
+    this.applyCurrentParameters();
+    this.requestUpdateOfPasses();
+  }
+
   public applyCurrentParameters() {
     const parameterArray: Array<Record<string, object>> = [];
     if (this._qualityMap.has(this._qualityLevel)) {
@@ -489,7 +499,7 @@ export class SceneRenderer {
       this.enableObjectSelection ? this.selectedObjects : []
     );
     this._renderPassManager.updatePasses(this.renderer, scene, camera);
-    this._renderPassManager.renderPasses(this.renderer);
+    this._renderPassManager.renderPasses(this.renderer, scene);
     scene.remove(this.groundGroup);
   }
 }

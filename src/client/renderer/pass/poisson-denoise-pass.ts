@@ -8,13 +8,17 @@ import {
   DEPTH_VALUE_SOURCE_TYPES,
 } from './pass-utility';
 import { PassRenderer } from './../render-utility';
-import type { Camera, Texture, WebGLRenderer } from 'three';
+import {
+  type Camera,
+  HalfFloatType,
+  type Texture,
+  type WebGLRenderer,
+} from 'three';
 import {
   Box3,
   DataTexture,
   LinearFilter,
   RepeatWrapping,
-  RGFormat,
   RGBAFormat,
   ShaderMaterial,
   UniformsUtils,
@@ -73,6 +77,7 @@ export class PoissonDenoiseRenderPass implements DenoisePass {
   };
   private _width: number = 0;
   private _height: number = 0;
+  private _samples: number = 0;
   private _normalVectorSourceType: NormalVectorSourceType =
     NORMAL_VECTOR_SOURCE_TYPES.FLOAT_BUFFER_NORMAL;
   private _depthValueSourceType: DepthValueSourceType =
@@ -104,10 +109,12 @@ export class PoissonDenoiseRenderPass implements DenoisePass {
   constructor(
     width: number,
     height: number,
+    samples: number,
     parameters?: PoissonDenoiseParameters
   ) {
     this._width = width;
     this._height = height;
+    this._samples = samples;
     this._normalVectorSourceType =
       parameters?.normalVectorSourceType ||
       NORMAL_VECTOR_SOURCE_TYPES.FLOAT_BUFFER_NORMAL;
@@ -249,12 +256,16 @@ export class PoissonDenoiseRenderPass implements DenoisePass {
     if (this._renderTargets.length < 2) {
       this._renderTargets = [
         new WebGLRenderTarget(this._width, this._height, {
-          format: this._rgInputTexture ? RGFormat : RGBAFormat,
+          samples: this._samples,
+          format: RGBAFormat,
+          type: HalfFloatType,
           magFilter: LinearFilter,
           minFilter: LinearFilter,
         }),
         new WebGLRenderTarget(this._width, this._height, {
-          format: this._rgInputTexture ? RGFormat : RGBAFormat,
+          samples: this._samples,
+          format: RGBAFormat,
+          type: HalfFloatType,
           magFilter: LinearFilter,
           minFilter: LinearFilter,
         }),

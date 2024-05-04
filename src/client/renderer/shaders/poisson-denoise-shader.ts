@@ -156,7 +156,7 @@ void denoiseSample(in vec3 center, in vec3 viewNormal, in vec3 viewPos, in vec2 
 }
 
 void main() {
-    float depth = getDepth(vUv.xy);	
+    float depth = fetchDepth(ivec2(vec2(textureSize(tDepth, 0)) * vUv.xy));	
     vec3 viewNormal = getViewNormal(vUv);	
     if (depth == 1. || dot(viewNormal, viewNormal) == 0.) {
         discard;

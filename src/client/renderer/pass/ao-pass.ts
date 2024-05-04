@@ -86,6 +86,8 @@ export class AORenderPass {
   };
   private _width: number = 0;
   private _height: number = 0;
+  private _samples: number = 0;
+  private _gBufferAntiAliasing: boolean = false;
   private _normalVectorSourceType: NormalVectorSourceType =
     NORMAL_VECTOR_SOURCE_TYPES.FLOAT_BUFFER_NORMAL;
   private _depthValueSourceType: DepthValueSourceType =
@@ -107,9 +109,17 @@ export class AORenderPass {
     return this._renderTarget ? this._renderTarget?.texture : null;
   }
 
-  constructor(width: number, height: number, parameters?: AOPassParameters) {
+  constructor(
+    width: number,
+    height: number,
+    samples: number,
+    gBufferAntiAliasing: boolean,
+    parameters?: AOPassParameters
+  ) {
     this._width = width;
     this._height = height;
+    this._samples = samples;
+    this._gBufferAntiAliasing = gBufferAntiAliasing;
     this._normalVectorSourceType =
       parameters?.normalVectorSourceType ||
       NORMAL_VECTOR_SOURCE_TYPES.FLOAT_BUFFER_NORMAL;
@@ -228,6 +238,12 @@ export class AORenderPass {
       ? 1
       : 0;
     aoMaterial.defines.SCENE_CLIP_BOX = 1;
+    aoMaterial.defines.NORMAL_VECTOR_ANTIALIAS = this._gBufferAntiAliasing
+      ? 2
+      : 0;
+    aoMaterial.defines.DEPTH_BUFFER_ANTIALIAS = this._gBufferAntiAliasing
+      ? 1
+      : 0;
   }
 
   private _updateUniforms(
@@ -273,6 +289,7 @@ export class AORenderPass {
   private _getRenderTargets(): WebGLRenderTarget {
     if (!this._renderTarget) {
       this._renderTarget = new WebGLRenderTarget(this._width, this._height, {
+        samples: this._samples,
         magFilter: LinearFilter,
         minFilter: LinearFilter,
       });

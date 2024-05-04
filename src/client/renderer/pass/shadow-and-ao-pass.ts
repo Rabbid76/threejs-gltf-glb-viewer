@@ -2,9 +2,11 @@ import type { Enumify } from '../../utils/types';
 import { RenderPass } from './render-pass';
 import type { RenderPassManager } from '../render-pass-manager';
 import {
+  ALPHA_RGBA,
   COLOR_COPY_BLEND_MODES,
   CopyTransformMaterial,
   DEFAULT_TRANSFORM,
+  ZERO_RGBA,
   interpolationMatrix,
 } from '../shader-utility';
 import type { DenoisePass, SceneVolume } from '../render-utility';
@@ -30,8 +32,8 @@ import type {
 } from 'three';
 import {
   CustomBlending,
-  LinearFilter,
   Matrix4,
+  NearestFilter,
   NoBlending,
   RGFormat,
   WebGLRenderTarget,
@@ -138,28 +140,34 @@ export class ShadowAndAoPass extends RenderPass {
     this._aoAndSoftShadowRenderTarget =
       this._aoAndSoftShadowRenderTarget ??
       new WebGLRenderTarget(this._width, this._height, {
-        samples: 0,
+        samples: this._samples,
         format: RGFormat,
-        magFilter: LinearFilter,
-        minFilter: LinearFilter,
+        magFilter: NearestFilter,
+        minFilter: NearestFilter,
       });
     return this._aoAndSoftShadowRenderTarget;
   }
 
   public get aoRenderPass(): AORenderPass {
     if (!this._aoPass) {
-      this._aoPass = new AORenderPass(this._width, this._height, {
-        normalVectorSourceType: this.gBufferTextures
-          .isFloatGBufferWithRgbNormalAlphaDepth
-          ? NORMAL_VECTOR_SOURCE_TYPES.FLOAT_BUFFER_NORMAL
-          : NORMAL_VECTOR_SOURCE_TYPES.INPUT_RGB_NORMAL,
-        depthValueSourceType: this.gBufferTextures
-          .isFloatGBufferWithRgbNormalAlphaDepth
-          ? DEPTH_VALUE_SOURCE_TYPES.NORMAL_VECTOR_ALPHA
-          : DEPTH_VALUE_SOURCE_TYPES.SEPARATE_BUFFER,
-        modulateRedChannel: true,
-        aoParameters: this.parameters.ao,
-      });
+      this._aoPass = new AORenderPass(
+        this._width,
+        this._height,
+        this._samples,
+        !this.parameters.applyToMaterial,
+        {
+          normalVectorSourceType: this.gBufferTextures
+            .isFloatGBufferWithRgbNormalAlphaDepth
+            ? NORMAL_VECTOR_SOURCE_TYPES.FLOAT_BUFFER_NORMAL
+            : NORMAL_VECTOR_SOURCE_TYPES.INPUT_RGB_NORMAL,
+          depthValueSourceType: this.gBufferTextures
+            .isFloatGBufferWithRgbNormalAlphaDepth
+            ? DEPTH_VALUE_SOURCE_TYPES.NORMAL_VECTOR_ALPHA
+            : DEPTH_VALUE_SOURCE_TYPES.SEPARATE_BUFFER,
+          modulateRedChannel: true,
+          aoParameters: this.parameters.ao,
+        }
+      );
     }
     return this._aoPass;
   }
@@ -169,6 +177,7 @@ export class ShadowAndAoPass extends RenderPass {
       this._softShadowPass = new PoissonDenoiseRenderPass(
         this._width,
         this._height,
+        this._samples,
         {
           inputTexture: undefined,
           depthTexture: this.gBufferTextures.depthBufferTexture,
@@ -184,7 +193,8 @@ export class ShadowAndAoPass extends RenderPass {
           rgInputTexture: true,
           luminanceType: 'float',
           sampleLuminance: 'a.x',
-          fragmentOutput: 'vec4(1.0, denoised.x, 0.0, 1.0)',
+          fragmentOutput:
+            'vec4(1.0, denoised.x, vec2(fract(depth * 1024.0), floor(depth * 1024.0)))',
           poissonDenoisePassParameters: {
             iterations: 1,
             samples: 16,
@@ -210,9 +220,10 @@ export class ShadowAndAoPass extends RenderPass {
     this._fadeRenderTarget =
       this._fadeRenderTarget ??
       new WebGLRenderTarget(this._width, this._height, {
+        samples: this._samples,
         format: RGFormat,
-        magFilter: LinearFilter,
-        minFilter: LinearFilter,
+        magFilter: NearestFilter,
+        minFilter: NearestFilter,
       });
     return this._fadeRenderTarget;
   }
@@ -222,6 +233,7 @@ export class ShadowAndAoPass extends RenderPass {
       this._poissonDenoisePass = new PoissonDenoiseRenderPass(
         this._width,
         this._height,
+        this._samples,
         {
           inputTexture: this.aoAndSoftShadowRenderTarget.texture,
           depthTexture: this.gBufferTextures.depthBufferTexture,
@@ -235,6 +247,8 @@ export class ShadowAndAoPass extends RenderPass {
             ? DEPTH_VALUE_SOURCE_TYPES.NORMAL_VECTOR_ALPHA
             : DEPTH_VALUE_SOURCE_TYPES.SEPARATE_BUFFER,
           rgInputTexture: true,
+          fragmentOutput:
+            'vec4(denoised.xy, vec2(fract(depth * 1024.0), floor(depth * 1024.0)))',
           poissonDenoisePassParameters: this.parameters.poissonDenoise,
         }
       );
@@ -565,6 +579,7 @@ export class ShadowAndAoPass extends RenderPass {
         texture: passTexture,
         blending: NoBlending,
         colorTransform: DEFAULT_TRANSFORM,
+        colorBase: ZERO_RGBA,
         multiplyChannels: 0,
       });
       this.passRenderer.renderScreenSpace(
@@ -623,7 +638,8 @@ export class ShadowAndAoPass extends RenderPass {
       this._copyMaterial.update({
         texture: this._finalTexture,
         blending: CustomBlending,
-        colorTransform: interpolationMatrix(redChannel, greenChannel, 0, 1),
+        colorTransform: interpolationMatrix(redChannel, greenChannel, 0, 0),
+        colorBase: ALPHA_RGBA,
         multiplyChannels: 1,
       }),
       renderer.getRenderTarget()

@@ -91,13 +91,13 @@ export class GBufferRenderPass extends RenderPass implements GBufferTextures {
   public get depthBufferTexture(): Texture {
     return this.copyToSeparateDepthBuffer && this.floatRgbNormalAlphaDepth
       ? this.separateDeptRenderTarget.texture
-      : this.depthNormalRenderTarget.depthTexture;
+      : (this.depthNormalRenderTarget.depthTexture as Texture);
   }
 
   public get textureWithDepthValue(): Texture {
     return this.floatRgbNormalAlphaDepth
       ? this.depthNormalRenderTarget.texture
-      : this.depthNormalRenderTarget.depthTexture;
+      : (this.depthNormalRenderTarget.depthTexture as Texture);
   }
 
   public updateGBufferRenderMaterial(camera: Camera): Material {

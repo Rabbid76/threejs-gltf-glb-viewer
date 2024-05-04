@@ -46,8 +46,15 @@ const CopyTransformShader = {
         varying vec2 vUv;
   
         void main() {
-            vec4 color = colorTransform * texture2D(tDiffuse, vUv) + colorBase;
+            vec4 color = texture2D(tDiffuse, vUv);
+            #if PREMULTIPLIED_ALPHA == 1
+              if (color.a > 0.0) color.rgb /= color.a;
+            #endif
+            color = colorTransform * color + colorBase;
             color.rgb = mix(color.rgb, vec3(color.r * color.g * color.b), multiplyChannels);
+            #if LINEAR_TO_SRGB == 1
+              color.rgb = mix(color.rgb * 12.92, 1.055 * pow(color.rgb, vec3(0.41666)) - 0.055, step(0.0031308, color.rgb));
+            #endif
             gl_FragColor = color;
         }`,
 };
@@ -141,7 +148,9 @@ export interface CopyTransformMaterialParameters {
 export class CopyTransformMaterial extends ShaderMaterial {
   constructor(
     parameters?: CopyTransformMaterialParameters,
-    copyBlendMode: CopyMaterialBlendMode = COLOR_COPY_BLEND_MODES.ADDITIVE
+    copyBlendMode: CopyMaterialBlendMode = COLOR_COPY_BLEND_MODES.ADDITIVE,
+    linearToSrgb: boolean = false,
+    premultipliedALpha: boolean = false
   ) {
     const blendingParameters =
       copyBlendMode === COLOR_COPY_BLEND_MODES.ADDITIVE
@@ -158,6 +167,10 @@ export class CopyTransformMaterial extends ShaderMaterial {
       uniforms: UniformsUtils.clone(CopyTransformShader.uniforms),
       vertexShader: CopyTransformShader.vertexShader,
       fragmentShader: CopyTransformShader.fragmentShader,
+      defines: {
+        LINEAR_TO_SRGB: linearToSrgb ? 1 : 0,
+        PREMULTIPLIED_ALPHA: premultipliedALpha ? 1 : 0,
+      },
       transparent: true,
       depthTest: false,
       depthWrite: false,

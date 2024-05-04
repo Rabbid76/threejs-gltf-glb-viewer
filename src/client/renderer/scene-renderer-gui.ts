@@ -121,6 +121,7 @@ export class SceneRendererGUI {
         'shadow denoised': 'shadowdenoise',
         'shadow fade in': 'shadowfadein',
         'shadow and AO': 'shadowandao',
+        'material AO pass': 'materialao',
         'ground reflection base': 'groundreflection',
         'ground reflection final': 'groundreflectionfinal',
         'baked ground shadow': 'bakedgroundshadow',

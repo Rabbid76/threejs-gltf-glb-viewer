@@ -1,32 +1,54 @@
 import type {
-  MeshPhysicalMaterial,
+  MeshStandardMaterial,
   ShaderLibShader,
   Texture,
   WebGLRenderer,
 } from 'three';
+import type { Nullable } from '../../utils/types';
 
 export class PostProcessingMaterialPlugin {
-  private _aoPassMap: Texture | null = null;
-  public aoPassMapScale: number = 1;
-  public aoIntensity: number = 1;
-  public aoPassMapIntensity: number = 1;
-  public shPassMapIntensity: number = 1;
   public applyAoAndShadowToAlpha: boolean = false;
-  private _material: MeshPhysicalMaterial;
-  private _materialShader: ShaderLibShader | null = null;
+  private _aoPassMapUniform: { value: Nullable<Texture> } = { value: null };
+  private _aoPassMapScaleUniform: { value: number } = { value: 1 };
+  private _aoPassMapIntensityUniform: { value: number } = { value: 1 };
+  private _shPassMapIntensityUniform: { value: number } = { value: 1 };
+  private _reflectionPassMapUniform: { value: Nullable<Texture> } = {
+    value: null,
+  };
+  private _reflectionPassMapScaleUniform: { value: number } = { value: 1 };
+  private _reflectionPassMapIntensityUniform: { value: number } = { value: 0 };
+  public applyReflectionPassMap: boolean = false;
 
-  get aoPassMap(): Texture | null {
-    return this._aoPassMap;
+  set aoPassMap(value: Nullable<Texture>) {
+    this._aoPassMapUniform.value = value;
   }
 
-  set aoPassMap(aoPassMap: Texture | null) {
-    this._aoPassMap = aoPassMap;
-    this._material.needsUpdate = true;
-    this._setUniforms();
+  set aoPassMapScale(value: number) {
+    this._aoPassMapScaleUniform.value = value;
+  }
+
+  set aoPassMapIntensity(value: number) {
+    this._aoPassMapIntensityUniform.value = value;
+  }
+
+  set shPassMapIntensity(value: number) {
+    this._shPassMapIntensityUniform.value = value;
+  }
+
+  set reflectionPassMap(value: Nullable<Texture>) {
+    this._reflectionPassMapUniform.value = value;
+  }
+
+  set reflectionPassMapScale(value: number) {
+    this._reflectionPassMapScaleUniform.value = value;
+  }
+
+  set reflectionPassMapIntensity(value: number) {
+    this._reflectionPassMapIntensityUniform.value = value;
   }
 
   public static addPlugin(
-    material: MeshPhysicalMaterial
+    material: MeshStandardMaterial
   ): PostProcessingMaterialPlugin | null {
     if (material.userData.postProcessingMaterialPlugin !== undefined) {
       return material.userData.postProcessingMaterialPlugin instanceof
@@ -34,7 +56,7 @@ export class PostProcessingMaterialPlugin {
         ? material.userData.postProcessingMaterialPlugin
         : null;
     }
-    const plugin = new PostProcessingMaterialPlugin(material);
+    const plugin = new PostProcessingMaterialPlugin();
     material.userData.postProcessingMaterialPlugin = plugin;
     material.onBeforeCompile = (
       materialShader: ShaderLibShader,
@@ -44,54 +66,63 @@ export class PostProcessingMaterialPlugin {
     return plugin;
   }
 
-  constructor(material: MeshPhysicalMaterial) {
-    this._material = material;
+  private _isEnabled() {
+    return (
+      this._aoPassMapUniform.value !== undefined &&
+      this._aoPassMapUniform.value !== null
+    );
   }
 
   private _customProgramCacheKey() {
-    return this._aoPassMap !== undefined && this._aoPassMap !== null
-      ? 'aoPassMap' + (this.applyAoAndShadowToAlpha ? 'Alpha' : '')
-      : '';
+    let passMapKey: string = '';
+    if (this._isEnabled()) {
+      passMapKey += 'aoPassMap' + (this.applyAoAndShadowToAlpha ? 'Alpha' : '');
+    }
+    if (this.applyReflectionPassMap) {
+      passMapKey += 'reflectionPassMap';
+    }
+    return passMapKey;
   }
 
   private _onBeforeCompile(
     materialShader: ShaderLibShader,
     _renderer: WebGLRenderer
   ) {
-    this._materialShader = materialShader;
-
-    if (this._aoPassMap !== undefined && this._aoPassMap !== null) {
+    const activatePlugIn = this._isEnabled() || this.applyReflectionPassMap;
+    if (activatePlugIn) {
       let parsReplacement: string = this.applyAoAndShadowToAlpha
         ? '#define USE_APPLY_AO_AND_SHADOW_TO_ALPHA\n'
         : '';
+      parsReplacement += this.applyReflectionPassMap
+        ? '#define USE_REFLECTION_PASS_MAP\n'
+        : '';
       parsReplacement += aoMapParsFragmentReplacement;
-      this._materialShader.fragmentShader =
-        this._materialShader.fragmentShader.replace(
-          '#include <aomap_pars_fragment>',
-          parsReplacement
-        );
-      this._materialShader.fragmentShader =
-        this._materialShader.fragmentShader.replace(
-          '#include <aomap_fragment>',
-          aoMapFragmentReplacement
-        );
+      materialShader.fragmentShader = materialShader.fragmentShader.replace(
+        '#include <aomap_pars_fragment>',
+        parsReplacement
+      );
+      materialShader.fragmentShader = materialShader.fragmentShader.replace(
+        '#include <aomap_fragment>',
+        aoMapFragmentReplacement
+      );
+      this._initUniforms(materialShader);
     }
-
-    this._setUniforms();
   }
 
-  private _setUniforms() {
-    if (this._materialShader) {
-      this._materialShader.uniforms.tAoPassMap = { value: this._aoPassMap };
-      this._materialShader.uniforms.aoPassMapScale = {
-        value: this.aoPassMapScale,
-      };
-      this._materialShader.uniforms.aoPassMapIntensity = {
-        value: this.aoPassMapIntensity,
-      };
-      this._materialShader.uniforms.shPassMapIntensity = {
-        value: this.shPassMapIntensity,
-      };
+  private _initUniforms(materialShader: ShaderLibShader) {
+    if (materialShader) {
+      materialShader.uniforms.tAoPassMap = this._aoPassMapUniform;
+      materialShader.uniforms.aoPassMapScale = this._aoPassMapScaleUniform;
+      materialShader.uniforms.aoPassMapIntensity =
+        this._aoPassMapIntensityUniform;
+      materialShader.uniforms.shPassMapIntensity =
+        this._shPassMapIntensityUniform;
+      materialShader.uniforms.tReflectionPassMap =
+        this._reflectionPassMapUniform;
+      materialShader.uniforms.reflectionPassMapScale =
+        this._reflectionPassMapScaleUniform;
+      materialShader.uniforms.reflectionPassMapIntensity =
+        this._reflectionPassMapIntensityUniform;
     }
   }
 }
@@ -104,10 +135,13 @@ const aoMapParsFragmentReplacement = /* glsl */ `
 
 #endif
 
-	uniform sampler2D tAoPassMap;
-	uniform float aoPassMapScale;
+	uniform highp sampler2D tAoPassMap;
+  uniform float aoPassMapScale;
   uniform float aoPassMapIntensity;
   uniform float shPassMapIntensity;
+  uniform sampler2D tReflectionPassMap;
+  uniform float reflectionPassMapScale;
+  uniform float reflectionPassMapIntensity;
 `;
 
 const aoMapFragmentReplacement = /* glsl */ `
@@ -126,9 +160,34 @@ float shadowValue = 1.0;
 
 #endif
 
-  vec2 aoAndShadow = texelFetch( tAoPassMap, ivec2( gl_FragCoord.xy * aoPassMapScale ), 0 ).rg;
-  float aoPassMapValue = max(0.0, (aoAndShadow.r - 1.0) * aoPassMapIntensity + 1.0);
-  shadowValue = max(0.0, (aoAndShadow.g - 1.0) * shPassMapIntensity + 1.0);
+  vec4 aoAndShadowMap = texelFetch( tAoPassMap, ivec2( gl_FragCoord.xy * aoPassMapScale ), 0 );
+  vec2 aoAndShadow = aoAndShadowMap.rg;
+  float depthDelta = abs( dot(aoAndShadowMap.wz, vec2(1.0/1024.0)) - gl_FragCoord.z );
+  const ivec2 aoOffsetArray[8] = ivec2[8](
+    ivec2(1, 0), ivec2(-1, 0), ivec2(0, 1), ivec2(0, -1), ivec2(1, 1), ivec2(-1, 1), ivec2(1, -1), ivec2(-1, -1));
+  for (int aoOffsetI = 0; aoOffsetI < 8; aoOffsetI++) {
+    aoAndShadowMap = texelFetch( tAoPassMap, ivec2( gl_FragCoord.xy * aoPassMapScale ) + aoOffsetArray[aoOffsetI], 0 );
+    float testDepthDelta = abs( dot(aoAndShadowMap.wz, vec2(1.0/1024.0)) - gl_FragCoord.z );
+    if (testDepthDelta < depthDelta) {
+      aoAndShadow = aoAndShadowMap.rg;
+      depthDelta = testDepthDelta;
+    }
+  }
+  
+  float aoPassMapValue = aoPassMapIntensity < 0.0 ? 1.0 : max(0.0, (aoAndShadow.r - 1.0) * aoPassMapIntensity + 1.0);
+  shadowValue = shPassMapIntensity < 0.0 ? 1.0 : max(0.0, (aoAndShadow.g - 1.0) * shPassMapIntensity + 1.0);
+
+  #ifdef USE_REFLECTION_PASS_MAP
+
+    ivec2 reflectionPassMapSize = textureSize( tReflectionPassMap, 0 );
+    vec2 reflectionPassMapUv = vec2( gl_FragCoord.x * reflectionPassMapScale, float(reflectionPassMapSize.y) - gl_FragCoord.y * reflectionPassMapScale );
+    vec4 reflectionPassMapColor = texture2D( tReflectionPassMap, reflectionPassMapUv / vec2(reflectionPassMapSize) );
+    if (reflectionPassMapColor.a > 0.0) reflectionPassMapColor.rgb /= reflectionPassMapColor.a;
+    vec3 diffuseReflectionPassMapColor = reflectionPassMapColor.rgb * material.diffuseColor;
+    reflectedLight.indirectDiffuse += diffuseReflectionPassMapColor * reflectionPassMapColor.a * reflectionPassMapIntensity;
+    //reflectedLight.indirectDiffuse = mix(reflectedLight.indirectDiffuse, diffuseReflectionPassMapColor, reflectionPassMapColor.a * reflectionPassMapIntensity);
+
+  #endif
 
   #if defined ( USE_APPLY_AO_AND_SHADOW_TO_ALPHA )
     diffuseColor.a = 1.0 - (1.0 - diffuseColor.a) * aoPassMapValue * shadowValue;
@@ -149,8 +208,13 @@ float shadowValue = 1.0;
 	#if defined( USE_ENVMAP ) && defined( STANDARD )
 
 		float dotNV = saturate( dot( geometryNormal, geometryViewDir ) );
+    
+        float specularOcclusion = computeSpecularOcclusion( dotNV, ambientOcclusion * shadowValue, material.roughness );
+		reflectedLight.indirectSpecular *= specularOcclusion;
 
-		reflectedLight.indirectSpecular *= computeSpecularOcclusion( dotNV, ambientOcclusion * shadowValue, material.roughness );
+    #ifdef USE_REFLECTION_PASS_MAP
+        reflectedLight.indirectSpecular += material.specularColor * reflectionPassMapColor.rgb * reflectionPassMapColor.a * reflectionPassMapIntensity * specularOcclusion;
+    #endif  
     
 	#endif
 `;

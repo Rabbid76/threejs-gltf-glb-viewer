@@ -11,10 +11,10 @@ import { DebugPass } from './pass/debug-pass';
 import { SHADOW_BLUR_TYPES } from './pass/shadow-and-ao-pass';
 import { SceneRenderPass } from './pass/scene-render-pass';
 import type { SceneRenderer, SceneRendererParameters } from './scene-renderer';
-import type { Camera, Scene, WebGLRenderer } from 'three';
+import type { Camera, Scene, Texture, WebGLRenderer } from 'three';
 import type { ThreeObject3d } from './render-cache';
 import { PostProcessingMaterialPlugin } from './materials/postprocessing-material-plugin';
-import { MeshPhysicalMaterial, Vector2 } from 'three';
+import { MeshStandardMaterial, Vector2 } from 'three';
 import type { Mesh, Object3D } from 'three';
 
 interface _passUpdateStates {
@@ -59,6 +59,7 @@ export class RenderPassManager {
     updateOutlinePass: false,
     updateDebugPass: false,
   };
+  public aoPassMapTexture: Texture | null = null;
 
   public get passRenderer(): PassRenderer {
     return this._passRenderer;
@@ -136,6 +137,8 @@ export class RenderPassManager {
   constructor(sceneRender: SceneRenderer) {
     this._sceneRenderer = sceneRender;
     this._maxSamples = getMaxSamples(this._sceneRenderer.renderer);
+    const gBufferAndAoSamples = 1;
+    const shadowSamples = 1;
     this._sceneRenderPass = new SceneRenderPass(this);
     this._bakedGroundContactShadowPass = new BakedGroundContactShadowPass(
       this,
@@ -145,7 +148,6 @@ export class RenderPassManager {
         sharedShadowGroundPlane: this._sceneRenderer.shadowAndAoGroundPlane,
       }
     );
-    const gBufferAndAoSamples = 1;
     this._gBufferRenderPass = new GBufferRenderPass(this, {
       shared: true,
       capabilities: this._sceneRenderer.renderer.capabilities,
@@ -164,7 +166,7 @@ export class RenderPassManager {
       this,
       new Vector2(this._sceneRenderer.width, this._sceneRenderer.height),
       {
-        samples: this._maxSamples,
+        samples: shadowSamples,
         alwaysUpdate: false,
       }
     );
@@ -228,7 +230,6 @@ export class RenderPassManager {
     this._updateShadowAndAoPass(updateRequirements);
     this._updateOutlinePass();
     this._updateDebugPass();
-    this._updateMaterials(renderer, scene);
   }
 
   private _evaluateIfShadowAndAoUpdateIsNeeded(): DynamicPassUpdateRequirements {
@@ -283,7 +284,13 @@ export class RenderPassManager {
   }
 
   private _updateBakedGroundContactShadowPass() {
-    if (this._bakedGroundContactShadowPass.needsUpdate) {
+    const limitPlaneSize = this._bakedGroundContactShadowPass.limitPlaneSize;
+    this._bakedGroundContactShadowPass.limitPlaneSize =
+      this._bakedGroundContactShadowPass.parameters.enabled;
+    if (
+      limitPlaneSize !== this._bakedGroundContactShadowPass.limitPlaneSize ||
+      this._bakedGroundContactShadowPass.needsUpdate
+    ) {
       this._bakedGroundContactShadowPass.updateBounds(
         this._sceneRenderer.boundingVolume,
         this._sceneRenderer.groundLevel
@@ -405,15 +412,19 @@ export class RenderPassManager {
   }
 
   private _updateMaterials(renderer: WebGLRenderer, scene: Scene) {
-    if (!this.materialsNeedUpdate) {
+    if (
+      !this.materialsNeedUpdate ||
+      !this._shadowAndAoPass.parameters.applyToMaterial
+    ) {
       return;
     }
+    this.aoPassMapTexture = this._shadowAndAoPass.denoiseRenderTargetTexture;
     const devicePixelRatio: number = renderer.getPixelRatio();
     this.materialsNeedUpdate = false;
     scene.traverse((object: Object3D) => {
       if ((object as ThreeObject3d).isMesh) {
         const material = (object as Mesh).material;
-        if (material instanceof MeshPhysicalMaterial) {
+        if (material instanceof MeshStandardMaterial) {
           this._updateMaterial(object as Mesh, material, devicePixelRatio);
         }
       }
@@ -422,30 +433,72 @@ export class RenderPassManager {
 
   private _updateMaterial(
     object: Mesh,
-    material: MeshPhysicalMaterial,
+    material: MeshStandardMaterial,
     devicePixelRatio: number
   ) {
-    const applyAoToMaterial =
-      this._shadowAndAoPass.parameters.applyToMaterial &&
-      (material.name === 'ShadowGroundPlaneMaterial' ||
-        (object.receiveShadow &&
-          (!material.transparent || material.alphaTest >= 0.9)));
     const plugIn = PostProcessingMaterialPlugin.addPlugin(material);
     if (plugIn) {
-      plugIn.applyAoAndShadowToAlpha =
-        material.name === 'ShadowGroundPlaneMaterial';
-      plugIn.aoPassMapIntensity =
-        this._shadowAndAoPass.parameters.aoIntensity * 2;
-      plugIn.shPassMapIntensity =
-        this._shadowAndAoPass.parameters.shadowIntensity * 2;
-      plugIn.aoPassMapScale = 1 / devicePixelRatio;
-      plugIn.aoPassMap = applyAoToMaterial
-        ? this._shadowAndAoPass.finalTexture
-        : null;
+      this._updatePlugInAo(plugIn, object, material, devicePixelRatio);
+      this._updatePlugInReflection(plugIn, object);
+      material.needsUpdate = false;
     }
   }
 
-  public renderPasses(renderer: WebGLRenderer): void {
+  private _updatePlugInAo(
+    plugIn: PostProcessingMaterialPlugin,
+    object: Mesh,
+    material: MeshStandardMaterial,
+    devicePixelRatio: number
+  ) {
+    const applyAoToMaterial =
+      this._shadowAndAoPass.parameters.enabled &&
+      this._shadowAndAoPass.parameters.applyToMaterial &&
+      this.aoPassMapTexture !== null &&
+      (material.name === 'ShadowGroundPlaneMaterial' ||
+        (object.receiveShadow &&
+          (!material.transparent || material.alphaTest >= 0.9)));
+    const aoEnabled =
+      applyAoToMaterial && this._shadowAndAoPass.parameters.aoIntensity > 0.01;
+    const shadowEnabled =
+      applyAoToMaterial &&
+      this._screenSpaceShadowMapPass.enabled &&
+      this._shadowAndAoPass.parameters.shadowIntensity > 0.01;
+    plugIn.applyAoAndShadowToAlpha =
+      material.name === 'ShadowGroundPlaneMaterial';
+    plugIn.aoPassMapIntensity = aoEnabled
+      ? this._shadowAndAoPass.parameters.aoIntensity * 2
+      : -1.0;
+    plugIn.shPassMapIntensity = shadowEnabled
+      ? this._shadowAndAoPass.parameters.shadowIntensity * 2
+      : -1.0;
+    plugIn.aoPassMapScale = 1 / devicePixelRatio;
+    plugIn.aoPassMap = this.aoPassMapTexture;
+  }
+
+  private _updatePlugInReflection(
+    plugIn: PostProcessingMaterialPlugin,
+    object: Mesh
+  ) {
+    const reflectionPassTexture =
+      this._groundReflectionPass.intensityRenderTarget.texture;
+    const isFloor = object.userData.isPlanFloor;
+    const reflectionEnabled =
+      isFloor &&
+      this._groundReflectionPass.parameters.enabled &&
+      (reflectionPassTexture !== null || reflectionPassTexture !== undefined);
+    const intensity = this._groundReflectionPass.parameters.intensity;
+    plugIn.applyReflectionPassMap = reflectionEnabled;
+    plugIn.reflectionPassMapIntensity = reflectionEnabled
+      ? Math.pow(intensity, 0.25)
+      : 0;
+    plugIn.reflectionPassMapScale =
+      1 /
+      (this._groundReflectionPass.parameters.renderTargetDownScale *
+        devicePixelRatio);
+    plugIn.reflectionPassMap = reflectionEnabled ? reflectionPassTexture : null;
+  }
+
+  public renderPasses(renderer: WebGLRenderer, scene: Scene): void {
     renderer.setRenderTarget(null);
     this._bakedGroundContactShadowPass.renderPass(renderer);
     if (this._passUpdateStates.updateGBuffer) {
@@ -457,6 +510,7 @@ export class RenderPassManager {
     if (this._passUpdateStates.updateShadowAndAoPass) {
       this._shadowAndAoPass.renderPass(renderer);
     }
+    this._updateMaterials(renderer, scene);
     this._sceneRenderPass.renderPass(renderer);
     if (this._passUpdateStates.updateGroundReflection) {
       this._groundReflectionPass.renderPass(renderer);
