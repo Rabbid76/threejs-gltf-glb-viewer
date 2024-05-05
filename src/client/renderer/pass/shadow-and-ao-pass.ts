@@ -2,12 +2,10 @@ import type { Enumify } from '../../utils/types';
 import { RenderPass } from './render-pass';
 import type { RenderPassManager } from '../render-pass-manager';
 import {
-  ALPHA_RGBA,
   COLOR_COPY_BLEND_MODES,
   CopyTransformMaterial,
   DEFAULT_TRANSFORM,
   ZERO_RGBA,
-  interpolationMatrix,
 } from '../shader-utility';
 import type { DenoisePass, SceneVolume } from '../render-utility';
 import {
@@ -17,6 +15,7 @@ import {
 import { CameraUpdate } from '../render-utility';
 import type { AORenderPassParameters } from './ao-pass';
 import { defaultAORenderPassParameters, AORenderPass } from './ao-pass';
+import { BlendAoAndAShadowMaterial } from '../materials/blend-ao-and-shadow-material';
 import type { PoissonDenoisePassParameters } from './poisson-denoise-pass';
 import {
   defaultPoissonDenoisePassParameters,
@@ -132,6 +131,7 @@ export class ShadowAndAoPass extends RenderPass {
   private _poissonDenoisePass?: PoissonDenoiseRenderPass;
   private _copyMaterial: CopyTransformMaterial;
   private _blendMaterial: CopyTransformMaterial;
+  private _blendAoAndShadowMaterial: BlendAoAndAShadowMaterial;
   private _cameraUpdate: CameraUpdate = new CameraUpdate();
   private _finalTexture: Texture | null = null;
   private _onlyHardShadow: boolean = false;
@@ -309,6 +309,7 @@ export class ShadowAndAoPass extends RenderPass {
       {},
       COLOR_COPY_BLEND_MODES.DEFAULT
     );
+    this._blendAoAndShadowMaterial = new BlendAoAndAShadowMaterial();
   }
 
   public dispose() {
@@ -320,6 +321,7 @@ export class ShadowAndAoPass extends RenderPass {
     this._poissonDenoisePass?.dispose();
     this._copyMaterial?.dispose();
     this._blendMaterial?.dispose();
+    this._blendAoAndShadowMaterial?.dispose();
   }
 
   public setSize(width: number, height: number) {
@@ -627,20 +629,19 @@ export class ShadowAndAoPass extends RenderPass {
   }
 
   public renderToTarget(renderer: WebGLRenderer): void {
-    const redChannel = this._onlyHardShadow
+    const aoChannel = this._onlyHardShadow
       ? this.parameters.shadowIntensity
       : this.parameters.aoIntensity;
-    const greenChannel = this._onlyHardShadow
+    const shadowChannel = this._onlyHardShadow
       ? 0
       : this.parameters.shadowIntensity;
     this.passRenderer.renderScreenSpace(
       renderer,
-      this._copyMaterial.update({
+      this._blendAoAndShadowMaterial.update({
         texture: this._finalTexture,
         blending: CustomBlending,
-        colorTransform: interpolationMatrix(redChannel, greenChannel, 0, 0),
-        colorBase: ALPHA_RGBA,
-        multiplyChannels: 1,
+        aoIntensity: aoChannel,
+        shadowIntensity: shadowChannel,
       }),
       renderer.getRenderTarget()
     );

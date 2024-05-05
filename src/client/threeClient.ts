@@ -153,7 +153,7 @@ const generalProperties = {
 
 const renderScene = new SceneManager(renderer, labelRenderer);
 renderScene.sceneRenderer.setQualityLevel(
-  isMobile ? QUALITY_LEVELS.HIGH : QUALITY_LEVELS.HIGHEST
+  isMobile ? QUALITY_LEVELS.HIGHEST : QUALITY_LEVELS.HIGHEST
 );
 renderScene.createControls();
 renderScene.setEnvironment();

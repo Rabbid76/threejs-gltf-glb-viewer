@@ -10,13 +10,14 @@ import {
   DEFAULT_UV_TRANSFORM,
   FLIP_Y_UV_TRANSFORM,
   GRAYSCALE_TRANSFORM,
-  interpolationMatrix,
   LinearDepthRenderMaterial,
   RED_TRANSFORM,
   RGB_TRANSFORM,
   ZERO_RGBA,
 } from '../shader-utility';
 import { ShadowAndAoPass } from './shadow-and-ao-pass';
+import type { BlendAoAndAShadowMaterialParameters } from '../materials/blend-ao-and-shadow-material';
+import { BlendAoAndAShadowMaterial } from '../materials/blend-ao-and-shadow-material';
 import { EnvironmentMapDecodeMaterial } from '../light-source-detection';
 import type { Camera, ShaderMaterial, Texture, WebGLRenderer } from 'three';
 import { Color, Matrix4, NoBlending, OrthographicCamera, Vector4 } from 'three';
@@ -24,6 +25,7 @@ import { Color, Matrix4, NoBlending, OrthographicCamera, Vector4 } from 'three';
 export class DebugPass extends RenderPass {
   private _environmentMapDecodeMaterial: EnvironmentMapDecodeMaterial;
   private _copyMaterial?: CopyTransformMaterial;
+  private _blendAoAndShadowMaterial?: BlendAoAndAShadowMaterial;
   private _srgbToLinearCopyMaterial?: CopyTransformMaterial;
   private _depthRenderMaterial?: LinearDepthRenderMaterial;
   public debugOutput: string = '';
@@ -49,6 +51,17 @@ export class DebugPass extends RenderPass {
   ): ShaderMaterial {
     this._copyMaterial = this._copyMaterial ?? new CopyTransformMaterial();
     return this._copyMaterial.update(parameters);
+  }
+
+  protected getBlendAoAndShadowMaterial(
+    parameters?: BlendAoAndAShadowMaterialParameters
+  ): ShaderMaterial {
+    this._blendAoAndShadowMaterial =
+      this._blendAoAndShadowMaterial ??
+      new BlendAoAndAShadowMaterial({
+        blending: NoBlending,
+      });
+    return this._blendAoAndShadowMaterial.update(parameters);
   }
 
   protected getSrgbToLinearCopyMaterial(
@@ -248,19 +261,14 @@ export class DebugPass extends RenderPass {
       case 'shadowandao':
         this.passRenderer.renderScreenSpace(
           renderer,
-          this.getCopyMaterial({
+          this.getBlendAoAndShadowMaterial({
             texture:
               this.renderPassManager.shadowAndAoPass.denoiseRenderTargetTexture,
             blending: NoBlending,
-            colorTransform: interpolationMatrix(
+            aoIntensity:
               this.renderPassManager.shadowAndAoPass.parameters.aoIntensity,
+            shadowIntensity:
               this.renderPassManager.shadowAndAoPass.parameters.shadowIntensity,
-              0,
-              0
-            ),
-            colorBase: ALPHA_RGBA,
-            multiplyChannels: 1,
-            uvTransform: DEFAULT_UV_TRANSFORM,
           }),
           null
         );
