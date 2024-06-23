@@ -18,6 +18,8 @@ import {
 import { ShadowAndAoPass } from './shadow-and-ao-pass';
 import type { BlendAoAndAShadowMaterialParameters } from '../materials/blend-ao-and-shadow-material';
 import { BlendAoAndAShadowMaterial } from '../materials/blend-ao-and-shadow-material';
+import type { BlendAoPassDepthMaterialParameters } from '../materials/blend-ao-pass-depth-material';
+import { BlendAoPassDepthMaterial } from '../materials/blend-ao-pass-depth-material';
 import { EnvironmentMapDecodeMaterial } from '../light-source-detection';
 import type { Camera, ShaderMaterial, Texture, WebGLRenderer } from 'three';
 import { Color, Matrix4, NoBlending, OrthographicCamera, Vector4 } from 'three';
@@ -26,6 +28,7 @@ export class DebugPass extends RenderPass {
   private _environmentMapDecodeMaterial: EnvironmentMapDecodeMaterial;
   private _copyMaterial?: CopyTransformMaterial;
   private _blendAoAndShadowMaterial?: BlendAoAndAShadowMaterial;
+  private _blendAoPassDepthMaterial?: BlendAoPassDepthMaterial;
   private _srgbToLinearCopyMaterial?: CopyTransformMaterial;
   private _depthRenderMaterial?: LinearDepthRenderMaterial;
   public debugOutput: string = '';
@@ -62,6 +65,17 @@ export class DebugPass extends RenderPass {
         blending: NoBlending,
       });
     return this._blendAoAndShadowMaterial.update(parameters);
+  }
+
+  protected getBlendAoPassDepthMaterial(
+    parameters?: BlendAoPassDepthMaterialParameters
+  ): ShaderMaterial {
+    this._blendAoPassDepthMaterial =
+      this._blendAoPassDepthMaterial ??
+      new BlendAoPassDepthMaterial({
+        blending: NoBlending,
+      });
+    return this._blendAoPassDepthMaterial.update(parameters);
   }
 
   protected getSrgbToLinearCopyMaterial(
@@ -269,6 +283,17 @@ export class DebugPass extends RenderPass {
               this.renderPassManager.shadowAndAoPass.parameters.aoIntensity,
             shadowIntensity:
               this.renderPassManager.shadowAndAoPass.parameters.shadowIntensity,
+          }),
+          null
+        );
+        break;
+      case 'shadowandaodepth':
+        this.passRenderer.renderScreenSpace(
+          renderer,
+          this.getBlendAoPassDepthMaterial({
+            texture:
+              this.renderPassManager.shadowAndAoPass.denoiseRenderTargetTexture,
+            blending: NoBlending,
           }),
           null
         );

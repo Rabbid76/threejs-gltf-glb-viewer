@@ -4,9 +4,15 @@ import { Matrix4, Vector3, Vector2 } from 'three';
 export const generatePdSamplePointInitializer = (
   samples: number,
   rings: number,
+  radius: number,
   radiusExponent: number
 ) => {
-  const poissonDisk = generateDenoiseSamples(samples, rings, radiusExponent);
+  const poissonDisk = generateDenoiseSamples(
+    samples,
+    rings,
+    radius,
+    radiusExponent
+  );
   let glslCode = 'vec3[SAMPLES](';
   for (let i = 0; i < samples; i++) {
     const sample = poissonDisk[i];
@@ -20,13 +26,16 @@ export const generatePdSamplePointInitializer = (
 export const generateDenoiseSamples = (
   numSamples: number,
   numRings: number,
+  radius: number,
   radiusExponent: number
 ) => {
   const samples = [];
   for (let i = 0; i < numSamples; i++) {
     const angle = (2 * Math.PI * numRings * i) / numSamples;
-    const radius = Math.pow(i / (numSamples - 1), radiusExponent);
-    samples.push(new Vector3(Math.cos(angle), Math.sin(angle), radius));
+    const relativeRadius =
+      (1 + (radius - 1) * Math.pow(i / (numSamples - 1), radiusExponent)) /
+      radius;
+    samples.push(new Vector3(Math.cos(angle), Math.sin(angle), relativeRadius));
   }
   return samples;
 };
@@ -53,7 +62,8 @@ uniform float depthPhi;
 uniform float normalPhi;
 uniform float radius;
 uniform float radiusExponent;
-uniform int index;
+uniform int iteration;
+uniform int noOfIterations;
 #if SCENE_CLIP_BOX == 1
     uniform vec3 sceneBoxMin;
     uniform vec3 sceneBoxMax;
@@ -62,12 +72,18 @@ uniform int index;
 #include <common>
 #include <packing>
 
+#if LUMINANCE_WEIGHTED == 1  
+
 #ifndef LUMINANCE_TYPE
 #define LUMINANCE_TYPE float
 #endif
-
 #ifndef SAMPLE_LUMINANCE
 #define SAMPLE_LUMINANCE dot(vec3(0.2125, 0.7154, 0.0721), a)
+#endif
+#define WEIGHT_TYPE LUMINANCE_TYPE
+
+#else
+#define WEIGHT_TYPE float
 #endif
 
 #ifndef FRAGMENT_OUTPUT
@@ -136,7 +152,7 @@ vec3 getViewNormal(const vec2 uv) {
 #endif
 }
 
-void denoiseSample(in vec3 center, in vec3 viewNormal, in vec3 viewPos, in vec2 sampleUv, inout vec3 denoised, inout LUMINANCE_TYPE totalWeight) {
+void denoiseSample(in vec3 center, in vec3 viewNormal, in vec3 viewPos, in vec2 sampleUv, inout vec3 denoised, inout WEIGHT_TYPE totalWeight) {
     vec4 sampleTexel = textureLod(tDiffuse, sampleUv, 0.0);
     float sampleDepth = getDepth(sampleUv);
     vec3 sampleNormal = getViewNormal(sampleUv);
@@ -145,11 +161,15 @@ void denoiseSample(in vec3 center, in vec3 viewNormal, in vec3 viewPos, in vec2 
     
     float normalDiff = dot(viewNormal, sampleNormal);
     float normalSimilarity = pow(max(normalDiff, 0.), normalPhi);
-    LUMINANCE_TYPE lumaDiff = abs(getLuminance(neighborColor) - getLuminance(center));
-    LUMINANCE_TYPE lumaSimilarity = max(1. - lumaDiff / lumaPhi, 0.);
-    float depthDiff = abs(dot(viewPos - viewPosSample, viewNormal));
+    float depthDiff = abs(dot(normalize(viewPos - viewPosSample), viewNormal));
     float depthSimilarity = max(1. - depthDiff / depthPhi, 0.);
-    LUMINANCE_TYPE w = lumaSimilarity * depthSimilarity * normalSimilarity;
+    #if LUMINANCE_WEIGHTED == 1  
+      LUMINANCE_TYPE lumaDiff = abs(getLuminance(neighborColor) - getLuminance(center));
+      LUMINANCE_TYPE lumaSimilarity = max(1. - lumaDiff / lumaPhi, 0.);
+      LUMINANCE_TYPE w = lumaSimilarity * depthSimilarity * normalSimilarity;
+    #else
+      WEIGHT_TYPE w = depthSimilarity * normalSimilarity;
+    #endif
 
     denoised += w * neighborColor;
     totalWeight += w;
@@ -178,7 +198,7 @@ void main() {
     vec2 noiseResolution = vec2(textureSize(tNoise, 0));
     vec2 noiseUv = vUv * resolution / noiseResolution;
     vec4 noiseTexel = textureLod(tNoise, noiseUv, 0.0);
-    vec2 noiseVec = vec2(sin(noiseTexel[index % 4] * 2. * PI), cos(noiseTexel[index % 4] * 2. * PI));
+    vec2 noiseVec = vec2(sin(noiseTexel[iteration % 4] * 2. * PI), cos(noiseTexel[iteration % 4] * 2. * PI));
     #if SAMPLE_DISTRIBUTION == 1
       vec3 randomVec = normalize(vec3(noiseVec.xy, 0.));
       vec3 tangent = normalize(randomVec - viewNormal * dot(randomVec, viewNormal));
@@ -188,17 +208,19 @@ void main() {
       mat2 rotationMatrix = mat2(noiseVec.x, -noiseVec.y, noiseVec.x, noiseVec.y);
     #endif
 
-    LUMINANCE_TYPE totalWeight = LUMINANCE_TYPE(1.);
+    WEIGHT_TYPE totalWeight = WEIGHT_TYPE(1.);
     vec3 denoised = texel.rgb;
     for (int i = 0; i < SAMPLES; i++) {
         vec3 sampleDir = poissonDisk[i];
     #if SAMPLE_DISTRIBUTION == 1
-        vec3 offsetViewPos = viewPos + normalize(kernelMatrix * vec3(sampleDir.xy, 0.)) * sampleDir.z * radius;
+        vec3 offsetViewPos = viewPos + normalize(kernelMatrix * vec3(sampleDir.xy, 0.)) * sampleDir.z * radius * radius;
         vec4 samplePointNDC = cameraProjectionMatrix * vec4(offsetViewPos, 1.0); 
         vec2 sampleUv = (samplePointNDC.xy / samplePointNDC.w * 0.5 + 0.5);
     #else
-        vec2 offset = rotationMatrix * (sampleDir.xy * (1. + sampleDir.z * (radius - 1.)) / resolution);
-        vec2 sampleUv = vUv + offset;
+        vec2 offset = rotationMatrix * sampleDir.xy * (1. + sampleDir.z * (radius - 1.));
+        offset *= mix(vec2(1.0), sqrt(1.0 - viewNormal.xy * viewNormal.xy), float(iteration) / float(noOfIterations-1));
+        offset *= max(1.0, 1.0 / length(offset));
+        vec2 sampleUv = vUv + offset / resolution;
     #endif
         denoiseSample(center, viewNormal, viewPos, sampleUv, denoised, totalWeight);
     }
@@ -211,10 +233,11 @@ export const poissonDenoiseShader = {
   name: 'PoissonDenoiseShader',
   defines: {
     SAMPLES: 16,
-    SAMPLE_VECTORS: generatePdSamplePointInitializer(16, 2, 1),
+    SAMPLE_VECTORS: generatePdSamplePointInitializer(16, 2.89, 4, 1.3),
     NV_ALIGNED_SAMPLES: 0,
     SAMPLE_DISTRIBUTION: 0,
     DEPTH_VALUE_SOURCE: 0,
+    LUMINANCE_WEIGHTED: 1,
     LUMINANCE_TYPE: 'float',
     SAMPLE_LUMINANCE: 'dot(vec3(0.2125, 0.7154, 0.0721), a)',
     SCENE_CLIP_BOX: 0,
@@ -230,11 +253,12 @@ export const poissonDenoiseShader = {
     cameraProjectionMatrixInverse: { value: new Matrix4() },
     cameraWorldMatrix: { value: new Matrix4() },
     lumaPhi: { value: 5 },
-    depthPhi: { value: 5 },
-    normalPhi: { value: 5 },
+    depthPhi: { value: 1 },
+    normalPhi: { value: 1 },
     radius: { value: 10 },
-    radiusExponent: { value: 1 },
-    index: { value: 0 },
+    radiusExponent: { value: 1.3 },
+    iteration: { value: 0 },
+    noOfIterations: { value: 2 },
     sceneBoxMin: { value: new Vector3(-1, -1, -1) },
     sceneBoxMax: { value: new Vector3(1, 1, 1) },
   },

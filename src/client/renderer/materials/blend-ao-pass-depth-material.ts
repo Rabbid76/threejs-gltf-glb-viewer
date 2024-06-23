@@ -10,10 +10,9 @@ import {
 } from 'three';
 import type { Nullable } from '../../utils/types';
 
-const BlendAoAndAShadowShader = {
+const BlendAoPassDepthShader = {
   uniforms: {
     tDiffuse: { value: null as Nullable<Texture> },
-    intensity: { value: new Vector2(1, 1) },
   },
   vertexShader: `
           varying vec2 vUv;
@@ -23,31 +22,28 @@ const BlendAoAndAShadowShader = {
               gl_Position = (projectionMatrix * modelViewMatrix * vec4(position, 1.0)).xyww;
           }`,
   fragmentShader: `
-          uniform sampler2D tDiffuse;
-          uniform vec2 intensity;
+          uniform highp sampler2D tDiffuse;
           varying vec2 vUv;
     
           void main() {
               vec4 textureColor = texture2D(tDiffuse, vUv);
-              vec2 aoAndShadow = vec2(1.0) - intensity + intensity * textureColor.rg;
-              gl_FragColor = vec4(vec3(aoAndShadow.r * aoAndShadow.g), 1.0);
+              float aoPassDepth = dot(textureColor.wz, vec2(1.0/1024.0));
+              gl_FragColor = vec4(vec3(aoPassDepth * aoPassDepth), 1.0);
           }`,
 };
 
-export interface BlendAoAndAShadowMaterialParameters {
+export interface BlendAoPassDepthMaterialParameters {
   texture?: Nullable<Texture>;
   blending?: Blending;
-  aoIntensity?: number;
-  shadowIntensity?: number;
 }
 
-export class BlendAoAndAShadowMaterial extends ShaderMaterial {
+export class BlendAoPassDepthMaterial extends ShaderMaterial {
   private _intensity: Vector2 = new Vector2(1, 1);
-  constructor(parameters?: BlendAoAndAShadowMaterialParameters) {
+  constructor(parameters?: BlendAoPassDepthMaterialParameters) {
     super({
-      uniforms: UniformsUtils.clone(BlendAoAndAShadowShader.uniforms),
-      vertexShader: BlendAoAndAShadowShader.vertexShader,
-      fragmentShader: BlendAoAndAShadowShader.fragmentShader,
+      uniforms: UniformsUtils.clone(BlendAoPassDepthShader.uniforms),
+      vertexShader: BlendAoPassDepthShader.vertexShader,
+      fragmentShader: BlendAoPassDepthShader.fragmentShader,
       transparent: true,
       depthTest: false,
       depthWrite: false,
@@ -58,24 +54,17 @@ export class BlendAoAndAShadowMaterial extends ShaderMaterial {
       blendDstAlpha: ZeroFactor,
       blendEquationAlpha: AddEquation,
     });
-    this.uniforms.intensity.value = this._intensity;
     this.update(parameters);
   }
 
   public update(
-    parameters?: BlendAoAndAShadowMaterialParameters
-  ): BlendAoAndAShadowMaterial {
+    parameters?: BlendAoPassDepthMaterialParameters
+  ): BlendAoPassDepthMaterial {
     if (parameters?.texture !== undefined) {
       this.uniforms.tDiffuse.value = parameters.texture;
     }
     if (parameters?.blending !== undefined) {
       this.blending = parameters.blending;
-    }
-    if (parameters?.aoIntensity !== undefined) {
-      this._intensity.x = parameters.aoIntensity;
-    }
-    if (parameters?.shadowIntensity !== undefined) {
-      this._intensity.y = parameters.shadowIntensity;
     }
     return this;
   }

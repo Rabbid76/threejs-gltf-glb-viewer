@@ -38,11 +38,11 @@ const brightSceneShadingParameters: Record<string, any> = {
     poissonDenoise: {
       iterations: 2,
       samples: 16,
-      radius: 5,
-      radiusExponent: 1,
-      lumaPhi: 10,
-      depthPhi: 0.4,
-      normalPhi: 4,
+      rings: 2.89,
+      radius: 4,
+      radiusExponent: 1.3,
+      depthPhi: 2.5,
+      normalPhi: 0.5,
     },
   },
   groundReflectionParameters: {

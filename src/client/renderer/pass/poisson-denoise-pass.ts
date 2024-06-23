@@ -13,11 +13,11 @@ import {
   HalfFloatType,
   type Texture,
   type WebGLRenderer,
+  NearestFilter,
 } from 'three';
 import {
   Box3,
   DataTexture,
-  LinearFilter,
   RepeatWrapping,
   RGBAFormat,
   ShaderMaterial,
@@ -48,12 +48,12 @@ export const defaultPoissonDenoisePassParameters: PoissonDenoisePassParameters =
   {
     iterations: 2,
     samples: 16,
-    rings: 2,
-    radiusExponent: 1,
-    radius: 5,
+    rings: 2.89,
+    radiusExponent: 1.3,
+    radius: 4,
     lumaPhi: 10,
-    depthPhi: 0.5,
-    normalPhi: 1,
+    depthPhi: 2.5,
+    normalPhi: 0.5,
     nvOrientatedSamples: false,
   };
 
@@ -62,6 +62,7 @@ export interface PoissonDenoiseParameters {
   normalVectorSourceType?: NormalVectorSourceType;
   depthValueSourceType?: DepthValueSourceType;
   rgInputTexture?: boolean;
+  luminanceWeighted?: boolean;
   luminanceType?: string;
   sampleLuminance?: string;
   fragmentOutput?: string;
@@ -92,6 +93,7 @@ export class PoissonDenoiseRenderPass implements DenoisePass {
   private _passRenderer: PassRenderer = new PassRenderer();
   private _sceneClipBox: Box3 | undefined;
   private _rgInputTexture: boolean = false;
+  private _luminanceWeighted: boolean = true;
   private _luminanceType: string;
   private _sampleLuminance: string;
   private _fragmentOutput: string;
@@ -125,6 +127,7 @@ export class PoissonDenoiseRenderPass implements DenoisePass {
     this.depthTexture = parameters?.depthTexture || null;
     this.normalTexture = parameters?.normalTexture || null;
     this._rgInputTexture = parameters?.rgInputTexture || false;
+    this._luminanceWeighted = parameters?.luminanceWeighted === true;
     this._luminanceType = parameters?.luminanceType || 'vec3';
     this._sampleLuminance = parameters?.sampleLuminance || 'a';
     this._fragmentOutput =
@@ -195,6 +198,7 @@ export class PoissonDenoiseRenderPass implements DenoisePass {
     pdMaterial.defines.SAMPLE_VECTORS = generatePdSamplePointInitializer(
       this.parameters.samples,
       this.parameters.rings,
+      this.parameters.radius,
       this.parameters.radiusExponent
     );
     pdMaterial.defines.SAMPLE_DISTRIBUTION = this.parameters.nvOrientatedSamples
@@ -211,6 +215,7 @@ export class PoissonDenoiseRenderPass implements DenoisePass {
         ? 1
         : 0;
     pdMaterial.needsUpdate = true;
+    pdMaterial.defines.LUMINANCE_WEIGHTED = this._luminanceWeighted ? 1 : 0;
     pdMaterial.defines.LUMINANCE_TYPE = this._luminanceType;
     pdMaterial.defines.SAMPLE_LUMINANCE = this._sampleLuminance;
     pdMaterial.defines.FRAGMENT_OUTPUT = this._fragmentOutput;
@@ -259,15 +264,15 @@ export class PoissonDenoiseRenderPass implements DenoisePass {
           samples: this._samples,
           format: RGBAFormat,
           type: HalfFloatType,
-          magFilter: LinearFilter,
-          minFilter: LinearFilter,
+          magFilter: NearestFilter,
+          minFilter: NearestFilter,
         }),
         new WebGLRenderTarget(this._width, this._height, {
           samples: this._samples,
           format: RGBAFormat,
           type: HalfFloatType,
-          magFilter: LinearFilter,
-          minFilter: LinearFilter,
+          magFilter: NearestFilter,
+          minFilter: NearestFilter,
         }),
       ];
     }
@@ -320,13 +325,14 @@ export class PoissonDenoiseRenderPass implements DenoisePass {
     const pdMaterial = this._getMaterial(camera, this.needsUpdate);
     this.needsUpdate = false;
     const renderTargets = this._getRenderTargets();
+    pdMaterial.uniforms.iteration.value = this.parameters.iterations;
     for (let i = 0; i < this.parameters.iterations; i++) {
       const inputRenderTarget = renderTargets[(i + 1) % 2];
       this._outputRenderTargetIndex = i % 2;
       const outputRenderTarget = renderTargets[this._outputRenderTargetIndex];
       pdMaterial.uniforms.tDiffuse.value =
         i === 0 ? this._inputTexture : inputRenderTarget.texture;
-      pdMaterial.uniforms.index.value = i;
+      pdMaterial.uniforms.iteration.value = i;
       this._passRenderer.renderScreenSpace(
         renderer,
         pdMaterial,

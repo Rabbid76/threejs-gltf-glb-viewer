@@ -308,7 +308,7 @@ export class OutlinePass extends RenderPass {
         this._canBeHighlighted(object) ||
         (object as ThreeObject3d).isSprite
       ) {
-        let bFound = selectedMeshes.some(
+        const bFound = selectedMeshes.some(
           (selectedMesh) => selectedMesh.id === object.id
         );
         if (bFound === false) {

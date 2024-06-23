@@ -121,6 +121,7 @@ export class SceneRendererGUI {
         'shadow denoised': 'shadowdenoise',
         'shadow fade in': 'shadowfadein',
         'shadow and AO': 'shadowandao',
+        'shadow and AO depth': 'shadowandaodepth',
         'material AO pass': 'materialao',
         'ground reflection base': 'groundreflection',
         'ground reflection final': 'groundreflectionfinal',
@@ -309,9 +310,6 @@ export class SceneRendererGUI {
       .onChange(() => updateParameters());
     denoiseFolder
       .add<any>(denoiseParameters, 'radius', 0, 50, 1)
-      .onChange(() => updateParameters());
-    denoiseFolder
-      .add<any>(denoiseParameters, 'lumaPhi', 0, 20, 0.001)
       .onChange(() => updateParameters());
     denoiseFolder
       .add<any>(denoiseParameters, 'depthPhi', 0, 20, 0.001)

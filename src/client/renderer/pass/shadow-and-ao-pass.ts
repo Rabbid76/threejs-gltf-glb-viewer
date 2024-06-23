@@ -191,14 +191,12 @@ export class ShadowAndAoPass extends RenderPass {
             ? DEPTH_VALUE_SOURCE_TYPES.NORMAL_VECTOR_ALPHA
             : DEPTH_VALUE_SOURCE_TYPES.SEPARATE_BUFFER,
           rgInputTexture: true,
-          luminanceType: 'float',
-          sampleLuminance: 'a.x',
-          fragmentOutput:
-            'vec4(1.0, denoised.x, vec2(fract(depth * 1024.0), floor(depth * 1024.0)))',
+          luminanceWeighted: false,
+          fragmentOutput: 'vec4(1.0, denoised.x, 0.0, 1.0)',
           poissonDenoisePassParameters: {
             iterations: 1,
             samples: 16,
-            rings: 2,
+            rings: 2.89,
             radiusExponent: 1,
             radius: this.parameters.shadow.shadowRadius,
             lumaPhi: 10,
@@ -247,6 +245,7 @@ export class ShadowAndAoPass extends RenderPass {
             ? DEPTH_VALUE_SOURCE_TYPES.NORMAL_VECTOR_ALPHA
             : DEPTH_VALUE_SOURCE_TYPES.SEPARATE_BUFFER,
           rgInputTexture: true,
+          luminanceWeighted: false,
           fragmentOutput:
             'vec4(denoised.xy, vec2(fract(depth * 1024.0), floor(depth * 1024.0)))',
           poissonDenoisePassParameters: this.parameters.poissonDenoise,
