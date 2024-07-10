@@ -101,6 +101,7 @@ export class SceneManager {
   private groundProjectionSkybox: Mesh | null = null;
   private createGroundProjectionSkybox: boolean = false;
   private groundProjectionSkyboxDistance: number = 100;
+  public dracoLoader = new DRACOLoader();
 
   public get sceneRenderParameters(): SceneRendererParameters {
     return this.sceneRenderer.parameters;
@@ -479,14 +480,7 @@ export class SceneManager {
 
   private async loadGLTF(resource: string): Promise<Group> {
     const gltfLoader = new GLTFLoader();
-    const dracoLoader = new DRACOLoader();
-    dracoLoader.setDecoderPath('three/examples/jsm/libs/draco/'); // TODO
-
-    // Optional: Provide a DRACOLoader instance to decode compressed mesh data
-    // const dracoLoader = new DRACOLoader();
-    // dracoLoader.setDecoderPath( '/examples/jsm/libs/draco/' );
-    // loader.setDRACOLoader( dracoLoader );
-
+    gltfLoader.setDRACOLoader(this.dracoLoader);
     const gltf = await gltfLoader.loadAsync(resource);
     this.updateGLTFScene(gltf, (mesh: Mesh) => {
       if (mesh.isMesh) {

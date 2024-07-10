@@ -152,6 +152,8 @@ const generalProperties = {
 };
 
 const renderScene = new SceneManager(renderer, labelRenderer);
+renderScene.dracoLoader.setDecoderPath('./draco/');
+renderScene.dracoLoader.setDecoderConfig({ type: 'js' });
 renderScene.sceneRenderer.setQualityLevel(
   isMobile ? QUALITY_LEVELS.HIGHEST : QUALITY_LEVELS.HIGHEST
 );

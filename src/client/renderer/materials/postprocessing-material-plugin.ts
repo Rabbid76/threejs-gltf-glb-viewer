@@ -7,7 +7,7 @@ import type {
 import type { Nullable } from '../../utils/types';
 
 export class PostProcessingMaterialPlugin {
-  public weightedAoPassAnitAliasing: boolean = false;
+  public weightedAoPassAntiAliasing: boolean = false;
   public applyAoAndShadowToAlpha: boolean = false;
   private _aoPassMapUniform: { value: Nullable<Texture> } = { value: null };
   private _aoPassMapScaleUniform: { value: number } = { value: 1 };
@@ -97,7 +97,7 @@ export class PostProcessingMaterialPlugin {
       parsReplacement += this.applyReflectionPassMap
         ? '#define USE_REFLECTION_PASS_MAP\n'
         : '';
-      parsReplacement += this.weightedAoPassAnitAliasing
+      parsReplacement += this.weightedAoPassAntiAliasing
         ? '#define WEIGHTED_AO_PASS_ANTIALIASING\n'
         : '';
       parsReplacement += aoMapParsFragmentReplacement;

@@ -10,11 +10,13 @@
     "update:modules": "ncu -u && npm update && npm i",
     "build:client": "webpack --config ./src/client/webpack.prod.js",
     "build:server": "tsc -p ./src/server",
-    "build": "npm run copy:assets && npm run build:client && npm run build:server",
+    "build": "npm run copy:assets && npm run copy:draco:src && npm run build:client && npm run build:server",
     "dev": "webpack serve --config ./src/client/webpack.dev.js",
     "start": "node ./dist/server/three_server.js",
     "copy:assets": "copyfiles --flat ./deploy/*.glb ./dist/client",
-    "copy:deploy": "copyfiles --flat ./dist/client/*.js ./deploy && copyfiles --flat ./dist/client/*.png ./deploy && copyfiles --flat ./dist/client/*.envmap ./deploy",
+    "copy:draco:src": "copyfiles --flat ./node_modules/three/examples/jsm/libs/draco/* ./src/client/draco",
+    "copy:draco:deploy": "copyfiles --flat ./src/client/draco/* ./deploy/draco",
+    "copy:deploy": "npm run copy:draco:deploy && copyfiles --flat ./dist/client/*.js ./deploy && copyfiles --flat ./dist/client/*.png ./deploy && copyfiles --flat ./dist/client/*.envmap ./deploy",
     "postinstall": "patch-package",
     "patch:create": "npx patch-package realism-effects"
   },
@@ -23,11 +25,12 @@
   "devDependencies": {
     "@types/dat.gui": "^0.7.13",
     "@types/express": "^4.17.21",
-    "@types/node": "^20.14.8",
-    "@types/three": "^0.165.0",
-    "@typescript-eslint/eslint-plugin": "7.13.1",
-    "@typescript-eslint/parser": "7.13.1",
+    "@types/node": "^20.14.10",
+    "@types/three": "^0.166.0",
+    "@typescript-eslint/eslint-plugin": "7.16.0",
+    "@typescript-eslint/parser": "7.16.0",
     "axios": "^1.7.2",
+    "copy-webpack-plugin": "^12.0.2",
     "copyfiles": "^2.4.1",
     "dat.gui": "^0.7.9",
     "eslint": "8.57.0",
@@ -41,15 +44,15 @@
     "prettier": "3.3.2",
     "raw-loader": "^4.0.2",
     "ts-loader": "^9.5.1",
-    "typescript": "^5.5.2",
+    "typescript": "^5.5.3",
     "webpack": "^5.92.1",
     "webpack-cli": "^5.1.4",
     "webpack-dev-server": "^5.0.4",
-    "webpack-merge": "^5.10.0"
+    "webpack-merge": "^6.0.1"
   },
   "dependencies": {
     "express": "^4.19.2",
     "lodash": "^4.17.21",
-    "three": "0.165.0"
+    "three": "0.166.1"
   }
 }

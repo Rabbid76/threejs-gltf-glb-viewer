@@ -229,13 +229,13 @@ void main() {
 
         directionalLightShadow = directionalLightShadows[ i ];
         dynamicRadius = fadeOutDistance * groundMapScale;
-        groundShadowFactor = groundDistance < 0.5 ? getShadow( directionalShadowMap[ i ], directionalLightShadow.shadowMapSize, directionalLightShadow.shadowBias, dynamicRadius, vDirectionalShadowCoord[ i ] ) : 1.0;
+        groundShadowFactor = groundDistance < 0.5 ? getShadow( directionalShadowMap[ i ], directionalLightShadow.shadowMapSize, directionalLightShadow.shadowIntensity, directionalLightShadow.shadowBias, dynamicRadius, vDirectionalShadowCoord[ i ] ) : 1.0;
 
       #elif defined( USE_SHADOWMAP ) && ( UNROLLED_LOOP_INDEX < NUM_DIR_LIGHT_SHADOWS )
 
         directionalLightShadow = directionalLightShadows[ i ];
         dynamicRadius = getShadowDynamicRadius(directionalShadowMap[i], directionalLightShadow.shadowBias, directionalLightShadow.shadowRadius, vDirectionalShadowCoord[i], dynamicScale);
-        shadowFactor = ( directLight.visible && receiveShadow ) ? getShadow( directionalShadowMap[ i ], directionalLightShadow.shadowMapSize, directionalLightShadow.shadowBias, dynamicRadius, vDirectionalShadowCoord[ i ] ) : 1.0;  
+        shadowFactor = ( directLight.visible && receiveShadow ) ? getShadow( directionalShadowMap[ i ], directionalLightShadow.shadowMapSize, directionalLightShadow.shadowIntensity, directionalLightShadow.shadowBias, dynamicRadius, vDirectionalShadowCoord[ i ] ) : 1.0;  
         accumulatedShadowLight += directLight.color * shadowFactor * saturate(min(dotNL * 10.0 + 0.9, 1.0));
         dotNL = dot(dot(geometryNormal, geometryPosition) >= 0.0 ? -geometryNormal : geometryNormal, directLight.direction);
         incidentLightSum += directLight.color;

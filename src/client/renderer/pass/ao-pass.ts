@@ -28,8 +28,8 @@ import {
   Box3,
   CustomBlending,
   DataTexture,
-  LinearFilter,
   MinEquation,
+  NearestFilter,
   OneFactor,
   RepeatWrapping,
   RGBAFormat,
@@ -290,8 +290,8 @@ export class AORenderPass {
     if (!this._renderTarget) {
       this._renderTarget = new WebGLRenderTarget(this._width, this._height, {
         samples: this._samples,
-        magFilter: LinearFilter,
-        minFilter: LinearFilter,
+        magFilter: NearestFilter,
+        minFilter: NearestFilter,
       });
     }
     return this._renderTarget;

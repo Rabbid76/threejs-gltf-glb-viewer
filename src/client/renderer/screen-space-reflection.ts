@@ -146,8 +146,8 @@ export class ScreenSpaceReflection {
         this._height * renderer.getPixelRatio()
       );
     renderer.copyFramebufferToTexture(
-      new Vector2(),
-      this._copyDiffuseFrameTexture
+      this._copyDiffuseFrameTexture,
+      new Vector2()
     );
     this.gBufferRenderTarget.renderPass(renderer);
     this._ssrRenderPass.inputTexture = this._copyDiffuseFrameTexture;
