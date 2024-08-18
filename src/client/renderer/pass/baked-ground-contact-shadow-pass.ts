@@ -176,7 +176,6 @@ export class BakedGroundContactShadowPass extends RenderPass {
     this.updatePlaneAndShadowCamera();
   }
 
-  // eslint-disable-next-line complexity
   private _getDefaultParameters(
     parameters?: BakedGroundContactShadowConstructorParameters
   ): BakedGroundContactShadowParameters {

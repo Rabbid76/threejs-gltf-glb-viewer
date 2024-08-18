@@ -7,7 +7,7 @@ export const deepMerge = (obj1: any, obj2: any): any => {
       } else {
         obj1[p] = obj2[p];
       }
-    } catch (e) {
+    } catch {
       // Property in destination object not set; create it and set its value.
       obj1[p] = obj2[p];
     }

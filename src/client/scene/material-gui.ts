@@ -1,4 +1,3 @@
-/* eslint-disable complexity */
 import type { Color, MeshPhysicalMaterial } from 'three';
 import type { MaterialData } from './meshConstructor';
 import type { GUI } from 'dat.gui';

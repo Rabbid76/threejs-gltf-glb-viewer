@@ -104,7 +104,6 @@ export class DebugPass extends RenderPass {
     return this._depthRenderMaterial.update({ camera });
   }
 
-  // eslint-disable-next-line complexity
   public renderPass(renderer: WebGLRenderer): void {
     switch (this.debugOutput) {
       default:
