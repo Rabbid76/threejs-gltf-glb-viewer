@@ -1,23 +1,21 @@
 import express from 'express';
 import path from 'path';
-import http from 'http';
 
 const port: number = 3333;
 const hostname: string = '127.0.0.1';
 
 class App {
-  private server: http.Server;
   private port: number;
+  private app: express.Express;
 
   constructor(portNumber: number) {
     this.port = portNumber;
-    const app = express();
-    app.use(express.static(path.join(__dirname, '../client')));
-    this.server = new http.Server(app);
+    this.app = express();
+    this.app.use(express.static(path.join(__dirname, '../client')));
   }
 
   public Start() {
-    this.server.listen(this.port, () => {
+    this.app.listen(this.port, () => {
       console.log(`Server running at http://${hostname}:${port}/`);
     });
   }

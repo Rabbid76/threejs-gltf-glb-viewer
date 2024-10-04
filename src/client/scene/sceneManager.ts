@@ -204,7 +204,7 @@ export class SceneManager {
       );
     }
     if (this.transformControls) {
-      this.transformControls.visible = on;
+      this.transformControls.getHelper().visible = on;
     }
   }
 

@@ -28,7 +28,7 @@ export class Controls {
       this.orbitControls.enabled = !event.value;
     });
     control.attach(object);
-    target.add(control);
+    target.add(control.getHelper());
     return control;
   }
 
