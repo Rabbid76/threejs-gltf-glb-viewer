@@ -1,13 +1,13 @@
-import type {
-  MeshStandardMaterial,
-  ShaderLibShader,
-  Texture,
-  WebGLRenderer,
+import {
+  MeshPhysicalMaterial,
+  type MeshStandardMaterial,
+  type ShaderLibShader,
+  type Texture,
+  type WebGLRenderer,
 } from 'three';
 import type { Nullable } from '../../utils/types';
 
 export class PostProcessingMaterialPlugin {
-  public weightedAoPassAntiAliasing: boolean = false;
   public applyAoAndShadowToAlpha: boolean = false;
   private _aoPassMapUniform: { value: Nullable<Texture> } = { value: null };
   private _aoPassMapScaleUniform: { value: number } = { value: 1 };
@@ -51,6 +51,9 @@ export class PostProcessingMaterialPlugin {
   public static addPlugin(
     material: MeshStandardMaterial
   ): PostProcessingMaterialPlugin | null {
+    if (material instanceof MeshPhysicalMaterial && material.transmission > 0) {
+      return null;
+    }
     if (material.userData.postProcessingMaterialPlugin !== undefined) {
       return material.userData.postProcessingMaterialPlugin instanceof
         PostProcessingMaterialPlugin
@@ -96,9 +99,6 @@ export class PostProcessingMaterialPlugin {
         : '';
       parsReplacement += this.applyReflectionPassMap
         ? '#define USE_REFLECTION_PASS_MAP\n'
-        : '';
-      parsReplacement += this.weightedAoPassAntiAliasing
-        ? '#define WEIGHTED_AO_PASS_ANTIALIASING\n'
         : '';
       parsReplacement += aoMapParsFragmentReplacement;
       materialShader.fragmentShader = materialShader.fragmentShader.replace(
@@ -169,27 +169,14 @@ float shadowValue = 1.0;
   float depthDelta = abs( dot(aoAndShadowMap.wz, vec2(1.0/1024.0)) - gl_FragCoord.z );
   const ivec2 aoOffsetArray[8] = ivec2[8](
     ivec2(1, 0), ivec2(-1, 0), ivec2(0, 1), ivec2(0, -1), ivec2(1, 1), ivec2(-1, 1), ivec2(1, -1), ivec2(-1, -1));
-  #ifdef WEIGHTED_AO_PASS_ANTIALIASING 
-    aoAndShadow *= 100.0;
-    float deltaAoPassWeight = 100.0;  
-    for (int aoOffsetI = 0; aoOffsetI < 8; aoOffsetI++) {
-      aoAndShadowMap = texelFetch( tAoPassMap, ivec2( gl_FragCoord.xy * aoPassMapScale ) + aoOffsetArray[aoOffsetI], 0 );
-      float testDepthDelta = abs( dot(aoAndShadowMap.wz, vec2(1.0/1024.0)) - gl_FragCoord.z );
-      float aoPassSampleWeight = (depthDelta * 100.0 + 0.01) / (testDepthDelta * 100.0 + 0.01);
-      deltaAoPassWeight += aoPassSampleWeight;
-      aoAndShadow += aoAndShadowMap.rg * aoPassSampleWeight;
+  for (int aoOffsetI = 0; aoOffsetI < 8; aoOffsetI++) {
+    aoAndShadowMap = texelFetch( tAoPassMap, ivec2( gl_FragCoord.xy * aoPassMapScale ) + aoOffsetArray[aoOffsetI], 0 );
+    float testDepthDelta = abs( dot(aoAndShadowMap.wz, vec2(1.0/1024.0)) - gl_FragCoord.z );
+    if (testDepthDelta < depthDelta) {
+      aoAndShadow = aoAndShadowMap.rg;
+      depthDelta = testDepthDelta;
     }
-    aoAndShadow /= deltaAoPassWeight;
-  #else
-    for (int aoOffsetI = 0; aoOffsetI < 8; aoOffsetI++) {
-      aoAndShadowMap = texelFetch( tAoPassMap, ivec2( gl_FragCoord.xy * aoPassMapScale ) + aoOffsetArray[aoOffsetI], 0 );
-      float testDepthDelta = abs( dot(aoAndShadowMap.wz, vec2(1.0/1024.0)) - gl_FragCoord.z );
-      if (testDepthDelta < depthDelta) {
-        aoAndShadow = aoAndShadowMap.rg;
-        depthDelta = testDepthDelta;
-      }
-    }
-  #endif    
+  }
   
   float aoPassMapValue = aoPassMapIntensity < 0.0 ? 1.0 : max(0.0, (aoAndShadow.r - 1.0) * aoPassMapIntensity + 1.0);
   shadowValue = shPassMapIntensity < 0.0 ? 1.0 : max(0.0, (aoAndShadow.g - 1.0) * shPassMapIntensity + 1.0);

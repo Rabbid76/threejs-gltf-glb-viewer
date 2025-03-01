@@ -4,9 +4,11 @@ import type { AoAlgorithmType } from './pass/ao-pass';
 import { AO_ALGORITHMS } from './pass/ao-pass';
 import {
   ACESFilmicToneMapping,
+  AgXToneMapping,
   CineonToneMapping,
   LinearSRGBColorSpace,
   LinearToneMapping,
+  NeutralToneMapping,
   NoToneMapping,
   ReinhardToneMapping,
   SRGBColorSpace,
@@ -23,8 +25,9 @@ export class SceneRendererGUI {
   }
 
   public addGUI(gui: GUI, updateCallback: () => void): void {
-    this._addRepresentationalGUI(gui, updateCallback);
     this._addDebugGUI(gui, updateCallback);
+    const colorQualityFolder = gui.addFolder('Color and quality');
+    this._addRepresentationalGUI(colorQualityFolder, updateCallback);
     const shadowTypeFolder = gui.addFolder('Shadow type');
     this._addShadowTypeGUI(shadowTypeFolder, updateCallback);
     const shadowAndAoFolder = gui.addFolder('Shadow and Ambient Occlusion');
@@ -69,6 +72,8 @@ export class SceneRendererGUI {
       ['ReinhardToneMapping', ReinhardToneMapping],
       ['CineonToneMapping', CineonToneMapping],
       ['ACESFilmicToneMapping', ACESFilmicToneMapping],
+      ['AgXToneMapping', AgXToneMapping],
+      ['NeutralToneMapping', NeutralToneMapping],
     ]);
     const toneMappingNames: string[] = [];
     toneMappings.forEach((value, key) => {
@@ -86,9 +91,6 @@ export class SceneRendererGUI {
           updateCallback();
         }
       });
-  }
-
-  private _addDebugGUI(gui: GUI, updateCallback: () => void): void {
     const qualityLevels = new Map([
       ['HIGHEST', QUALITY_LEVELS.HIGHEST],
       ['HIGH', QUALITY_LEVELS.HIGH],
@@ -106,6 +108,9 @@ export class SceneRendererGUI {
           );
         }
       });
+  }
+
+  private _addDebugGUI(gui: GUI, updateCallback: () => void): void {
     gui
       .add<any>(this._sceneRenderer, 'debugOutput', {
         'off ': 'off',

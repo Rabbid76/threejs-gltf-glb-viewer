@@ -14,7 +14,12 @@ import type { SceneRenderer, SceneRendererParameters } from './scene-renderer';
 import type { Camera, Scene, Texture, WebGLRenderer } from 'three';
 import type { ThreeObject3d } from './render-cache';
 import { PostProcessingMaterialPlugin } from './materials/postprocessing-material-plugin';
-import { MeshStandardMaterial, Vector2 } from 'three';
+import {
+  LinearFilter,
+  MeshStandardMaterial,
+  NearestFilter,
+  Vector2,
+} from 'three';
 import type { Mesh, Object3D } from 'three';
 
 interface _passUpdateStates {
@@ -137,8 +142,9 @@ export class RenderPassManager {
   constructor(sceneRender: SceneRenderer) {
     this._sceneRenderer = sceneRender;
     this._maxSamples = getMaxSamples(this._sceneRenderer.renderer);
-    const gBufferAndAoSamples = 1;
-    const shadowSamples = 1;
+    const linearAoFilter = this._sceneRenderer.linearAoFilter;
+    const gBufferAndAoSamples = linearAoFilter ? this._maxSamples : 0;
+    const shadowSamples = linearAoFilter ? this._maxSamples : 0;
     this._sceneRenderPass = new SceneRenderPass(this);
     this._bakedGroundContactShadowPass = new BakedGroundContactShadowPass(
       this,
@@ -154,6 +160,8 @@ export class RenderPassManager {
       width: this._sceneRenderer.width,
       height: this._sceneRenderer.height,
       samples: gBufferAndAoSamples,
+      textureMinificationFilter: linearAoFilter ? LinearFilter : NearestFilter,
+      textureMagnificationFilter: linearAoFilter ? LinearFilter : NearestFilter,
     });
     this._groundReflectionPass = new GroundReflectionPass(
       this,

@@ -28,6 +28,7 @@ import {
   DirectionalLight,
   DoubleSide,
   LineBasicMaterial,
+  LinearFilter,
   MeshBasicMaterial,
   MeshPhongMaterial,
   MeshStandardMaterial,
@@ -168,8 +169,8 @@ export class ScreenSpaceShadowMapPass extends RenderPass {
       {
         samples,
         format: RedFormat,
-        magFilter: NearestFilter,
-        minFilter: NearestFilter,
+        magFilter: this._samples > 0 ? LinearFilter : NearestFilter,
+        minFilter: this._samples > 0 ? LinearFilter : NearestFilter,
       }
     );
   }

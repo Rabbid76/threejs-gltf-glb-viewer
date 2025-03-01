@@ -50,14 +50,14 @@ import type {
 } from 'three';
 import { Group } from 'three';
 
-export { BakedGroundContactShadowParameters } from './pass/baked-ground-contact-shadow-pass';
-export { OutlineParameters } from './outline-renderer';
+export { type BakedGroundContactShadowParameters } from './pass/baked-ground-contact-shadow-pass';
+export { type OutlineParameters } from './outline-renderer';
 export {
-  ShadowParameters,
-  ShadowAndAoPassParameters,
+  type ShadowParameters,
+  type ShadowAndAoPassParameters,
 } from './pass/shadow-and-ao-pass';
-export { AORenderPassParameters } from './pass/ao-pass';
-export { GroundReflectionParameters } from './pass/ground-reflection-pass';
+export { type AORenderPassParameters } from './pass/ao-pass';
+export { type GroundReflectionParameters } from './pass/ground-reflection-pass';
 
 interface WithUserData {
   userData?: Record<string, any>;
@@ -105,6 +105,7 @@ export class SceneRenderer {
   public debugOutput = 'off';
   public outputColorSpace = '';
   public toneMapping = '';
+  public linearAoFilter = true;
   public environmentLights = false;
   public enableObjectSelection: boolean = true;
   public groundLevel: number = 0;
@@ -158,9 +159,15 @@ export class SceneRenderer {
     return this._shadowAndAoGroundPlane;
   }
 
-  public constructor(renderer: WebGLRenderer, width: number, height: number) {
+  public constructor(
+    renderer: WebGLRenderer,
+    width: number,
+    height: number,
+    linearAoFilter?: boolean
+  ) {
     this.width = width;
     this.height = height;
+    this.linearAoFilter = linearAoFilter ?? true;
     this.renderer = renderer;
     this.renderCacheManager.registerCache(
       'inivisibleGround',

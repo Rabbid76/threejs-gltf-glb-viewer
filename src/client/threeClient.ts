@@ -12,7 +12,7 @@ import { BackgroundEnvironmentGUI } from './renderer/background-environment';
 import type { GroundMaterialType } from './scene/materials';
 import { GROUND_MATERIAL_TYPES } from './scene/materials';
 import type { Group } from 'three';
-import { Vector2, WebGLRenderer } from 'three';
+import { NeutralToneMapping, Vector2, WebGLRenderer } from 'three';
 import { CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import Stats from 'three/examples/jsm/libs/stats.module';
 import { GUI } from 'dat.gui';
@@ -124,6 +124,7 @@ const renderer = new WebGLRenderer({
   alpha: true,
   preserveDrawingBuffer: true,
 });
+renderer.toneMapping = NeutralToneMapping;
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setSize(window.innerWidth, window.innerHeight);
 container.appendChild(renderer.domElement);

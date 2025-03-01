@@ -6,6 +6,7 @@ import type {
   Object3D,
   ShaderMaterialParameters,
   Texture,
+  WebGLCapabilities,
   WebGLRenderer,
   WebGLRenderTarget,
   ColorRepresentation,
@@ -187,7 +188,8 @@ export class SceneVolume {
 }
 
 export const getMaxSamples = (renderTarget: WebGLRenderer): number => {
-  const maxSamples: number = renderTarget.capabilities.maxSamples;
+  const capabilities: WebGLCapabilities = renderTarget.capabilities;
+  const maxSamples: number = capabilities.maxSamples;
   return maxSamples;
 };
 

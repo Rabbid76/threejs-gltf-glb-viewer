@@ -31,6 +31,7 @@ import type {
 } from 'three';
 import {
   CustomBlending,
+  LinearFilter,
   Matrix4,
   NearestFilter,
   NoBlending,
@@ -142,8 +143,8 @@ export class ShadowAndAoPass extends RenderPass {
       new WebGLRenderTarget(this._width, this._height, {
         samples: this._samples,
         format: RGFormat,
-        magFilter: NearestFilter,
-        minFilter: NearestFilter,
+        magFilter: this._samples > 1 ? LinearFilter : NearestFilter,
+        minFilter: this._samples > 1 ? LinearFilter : NearestFilter,
       });
     return this._aoAndSoftShadowRenderTarget;
   }
@@ -220,8 +221,8 @@ export class ShadowAndAoPass extends RenderPass {
       new WebGLRenderTarget(this._width, this._height, {
         samples: this._samples,
         format: RGFormat,
-        magFilter: NearestFilter,
-        minFilter: NearestFilter,
+        magFilter: this._samples > 1 ? LinearFilter : NearestFilter,
+        minFilter: this._samples > 1 ? LinearFilter : NearestFilter,
       });
     return this._fadeRenderTarget;
   }

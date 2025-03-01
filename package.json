@@ -25,27 +25,27 @@
   "devDependencies": {
     "@types/dat.gui": "^0.7.13",
     "@types/express": "^5.0.0",
-    "@types/node": "^22.10.10",
-    "@types/three": "^0.172.0",
-    "@typescript-eslint/eslint-plugin": "8.21.0",
-    "@typescript-eslint/parser": "8.21.0",
-    "axios": "^1.7.9",
-    "copy-webpack-plugin": "^12.0.2",
+    "@types/node": "^22.13.8",
+    "@types/three": "^0.174.0",
+    "@typescript-eslint/eslint-plugin": "8.25.0",
+    "@typescript-eslint/parser": "8.25.0",
+    "axios": "^1.8.1",
+    "copy-webpack-plugin": "^13.0.0",
     "copyfiles": "^2.4.1",
     "dat.gui": "^0.7.9",
-    "eslint": "9.18.0",
-    "eslint-config-prettier": "10.0.1",
+    "eslint": "9.21.0",
+    "eslint-config-prettier": "10.0.2",
     "eslint-plugin-jest": "28.11.0",
     "eslint-plugin-node": "11.1.0",
     "eslint-plugin-prettier": "5.2.3",
     "install-peers": "^1.0.4",
-    "npm-check-updates": "^17.1.14",
+    "npm-check-updates": "^17.1.15",
     "patch-package": "^8.0.0",
-    "prettier": "3.4.2",
+    "prettier": "3.5.2",
     "raw-loader": "^4.0.2",
     "ts-loader": "^9.5.2",
     "typescript": "^5.7.3",
-    "webpack": "^5.97.1",
+    "webpack": "^5.98.0",
     "webpack-cli": "^6.0.1",
     "webpack-dev-server": "^5.2.0",
     "webpack-merge": "^6.0.1"
@@ -53,6 +53,6 @@
   "dependencies": {
     "express": "^4.21.2",
     "lodash": "^4.17.21",
-    "three": "0.172.0"
+    "three": "0.174.0"
   }
 }

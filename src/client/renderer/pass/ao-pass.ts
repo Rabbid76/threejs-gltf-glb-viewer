@@ -28,6 +28,7 @@ import {
   Box3,
   CustomBlending,
   DataTexture,
+  LinearFilter,
   MinEquation,
   NearestFilter,
   OneFactor,
@@ -41,7 +42,7 @@ import {
 } from 'three';
 import { SimplexNoise } from 'three/examples/jsm/math/SimplexNoise';
 
-export { AO_ALGORITHMS, AoAlgorithmType } from '../shaders/ao-shader';
+export { AO_ALGORITHMS, type AoAlgorithmType } from '../shaders/ao-shader';
 
 export interface AORenderPassParameters {
   [key: string]: any;
@@ -290,8 +291,8 @@ export class AORenderPass {
     if (!this._renderTarget) {
       this._renderTarget = new WebGLRenderTarget(this._width, this._height, {
         samples: this._samples,
-        magFilter: NearestFilter,
-        minFilter: NearestFilter,
+        magFilter: this._samples > 1 ? LinearFilter : NearestFilter,
+        minFilter: this._samples > 1 ? LinearFilter : NearestFilter,
       });
     }
     return this._renderTarget;
@@ -351,11 +352,11 @@ export class AORenderPass {
     scene: Scene,
     renderTarget?: WebGLRenderTarget
   ) {
-    const hbaoMaterial = this._getMaterial(camera, this.needsUpdate);
+    const aoMaterial = this._getMaterial(camera, this.needsUpdate);
     this.needsUpdate = false;
     this._passRenderer.renderScreenSpace(
       renderer,
-      hbaoMaterial,
+      aoMaterial,
       renderTarget ? renderTarget : this._getRenderTargets()
     );
   }
