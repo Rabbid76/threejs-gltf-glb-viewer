@@ -16,7 +16,7 @@
     "copy:assets": "copyfiles --flat ./deploy/*.glb ./dist/client",
     "copy:draco:src": "copyfiles --flat ./node_modules/three/examples/jsm/libs/draco/* ./src/client/draco",
     "copy:draco:deploy": "copyfiles --flat ./src/client/draco/* ./deploy/draco",
-    "copy:deploy": "npm run copy:draco:deploy && copyfiles --flat ./dist/client/*.js ./deploy && copyfiles --flat ./dist/client/*.png ./deploy && copyfiles --flat ./dist/client/*.envmap ./deploy",
+    "copy:deploy": "npm run copy:draco:deploy && copyfiles --flat ./dist/client/*.js ./deploy && copyfiles --flat ./dist/client/*.png ./deploy && copyfiles --flat ./dist/client/*.envmap ./deploy && copyfiles --flat ./dist/client/*.CUBE ./deploy && copyfiles --flat ./dist/client/*.3dl ./deploy",
     "postinstall": "patch-package",
     "patch:create": "npx patch-package realism-effects"
   },
