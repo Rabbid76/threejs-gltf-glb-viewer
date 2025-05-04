@@ -4,7 +4,7 @@ import { RectAreaLightHelper } from 'three/examples/jsm/helpers/RectAreaLightHel
 import type { SceneVolume } from '../render-utility';
 import { CameraUpdate } from '../render-utility';
 import type { LightSource } from '../light-source-detection';
-import { ObjectRenderCache } from '../render-cache';
+import { isTransparentMaterial, ObjectRenderCache } from '../render-cache';
 import { IlluminationBufferMaterial } from '../materials/illumination-buffer-material';
 import type { Enumify } from '../../utils/types';
 import type {
@@ -665,11 +665,7 @@ export class ShadowMapPassOverrideMaterialCache extends ObjectRenderCache {
       !(object.material.transparent === true && object.material.opacity < 0.9)
     ) {
       this._setShadowMaterialForOpaqueObject(object);
-    } else if (
-      object.material &&
-      (object.material as Material).transparent &&
-      (object.material as Material).opacity < 0.9
-    ) {
+    } else if (isTransparentMaterial(object.material, 0.9)) {
       this.addToCache(object, { visible: false });
     } else if (object.receiveShadow) {
       this.addToCache(object, {

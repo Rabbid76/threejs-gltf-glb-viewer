@@ -160,6 +160,8 @@ export class GroundReflectionPass extends RenderPass {
     this._reflectionRenderTarget?.dispose();
     this._intensityRenderTarget?.dispose();
     this._blurRenderTarget?.dispose();
+    this._blurPass.dispose();
+    this._reflectionIntensityMaterial.dispose();
     this._copyMaterial.dispose();
   }
 
@@ -229,7 +231,7 @@ export class GroundReflectionPass extends RenderPass {
     const groundReflectionCamera = this._createGroundReflectionCamera(
       this.camera
     );
-    this.renderCacheManager.render('inivisibleGround', this.scene, () => {
+    this.renderCacheManager.render('groundReflection', this.scene, () => {
       this._renderGroundReflection(
         renderer,
         this.scene,

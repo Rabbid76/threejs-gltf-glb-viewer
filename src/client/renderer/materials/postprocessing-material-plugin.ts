@@ -1,11 +1,11 @@
 import {
-  MeshPhysicalMaterial,
   type MeshStandardMaterial,
   type ShaderLibShader,
   type Texture,
   type WebGLRenderer,
 } from 'three';
 import type { Nullable } from '../../utils/types';
+import { isTransmissiveMaterial } from '../render-cache';
 
 export class PostProcessingMaterialPlugin {
   public applyAoAndShadowToAlpha: boolean = false;
@@ -51,7 +51,7 @@ export class PostProcessingMaterialPlugin {
   public static addPlugin(
     material: MeshStandardMaterial
   ): PostProcessingMaterialPlugin | null {
-    if (material instanceof MeshPhysicalMaterial && material.transmission > 0) {
+    if (isTransmissiveMaterial(material)) {
       return null;
     }
     if (material.userData.postProcessingMaterialPlugin !== undefined) {

@@ -1,6 +1,28 @@
 import type { Material, Object3D } from 'three';
-import { Mesh } from 'three';
+import { Mesh, MeshPhysicalMaterial } from 'three';
 import { MeshStandardMaterial } from 'three';
+
+export const isTransparentMaterial = (
+  material: Material | Material[],
+  threshold: number
+): boolean => {
+  if (Array.isArray(material)) {
+    return material.some((m) => isTransparentMaterial(m, threshold));
+  }
+  return (
+    (material.transparent && material.opacity < threshold) ||
+    material.alphaTest > 0
+  );
+};
+
+export const isTransmissiveMaterial = (
+  material: Material | Material[]
+): boolean => {
+  if (Array.isArray(material)) {
+    return material.some((m) => isTransmissiveMaterial(m));
+  }
+  return material instanceof MeshPhysicalMaterial && material.transmission > 0;
+};
 
 export interface RenderCache {
   dispose(): void;

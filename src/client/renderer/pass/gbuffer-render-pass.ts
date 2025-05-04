@@ -7,7 +7,11 @@ import {
   CopyTransformMaterial,
   DEFAULT_UV_TRANSFORM,
 } from '../shader-utility';
-import { ObjectRenderCache } from '../render-cache';
+import {
+  isTransmissiveMaterial,
+  isTransparentMaterial,
+  ObjectRenderCache,
+} from '../render-cache';
 import type { GBufferNormalDepthMaterial } from '../materials/normal-depth-material';
 import { NormalAndDepthRenderMaterial } from '../materials/normal-depth-material';
 import type {
@@ -20,14 +24,13 @@ import type {
   Texture,
   TextureFilter,
   WebGLRenderer,
+  Material,
 } from 'three';
 import {
   DepthStencilFormat,
   DepthTexture,
   FloatType,
-  Material,
   MeshNormalMaterial,
-  MeshPhysicalMaterial,
   NearestFilter,
   NoBlending,
   UnsignedInt248Type,
@@ -292,16 +295,9 @@ export class GBufferMaterialCache extends ObjectRenderCache {
     if (mesh.userData.isFloor) {
       this.addToCache(mesh, { visible: this._groundDepthWrite });
     } else if (mesh.visible) {
-      if (
-        mesh.material instanceof Material &&
-        ((mesh.material.transparent && mesh.material.opacity < 0.7) ||
-          mesh.material.alphaTest > 0)
-      ) {
+      if (isTransparentMaterial(mesh.material, 0.7)) {
         this.addToCache(mesh, { visible: false });
-      } else if (
-        mesh.material instanceof MeshPhysicalMaterial &&
-        mesh.material.transmission > 0
-      ) {
+      } else if (isTransmissiveMaterial(mesh.material)) {
         this.addToCache(mesh, { visible: false });
       }
     }
