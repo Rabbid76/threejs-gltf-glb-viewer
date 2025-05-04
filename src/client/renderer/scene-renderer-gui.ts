@@ -28,6 +28,8 @@ export class SceneRendererGUI {
     this._addDebugGUI(gui, updateCallback);
     const colorQualityFolder = gui.addFolder('Color and quality');
     this._addRepresentationalGUI(colorQualityFolder, updateCallback);
+    const lutFolder = gui.addFolder('Lut');
+    this._addLutGUI(lutFolder, updateCallback);
     const shadowTypeFolder = gui.addFolder('Shadow type');
     this._addShadowTypeGUI(shadowTypeFolder, updateCallback);
     const shadowAndAoFolder = gui.addFolder('Shadow and Ambient Occlusion');
@@ -108,6 +110,18 @@ export class SceneRendererGUI {
           );
         }
       });
+  }
+
+  private _addLutGUI(gui: GUI, updateCallback: () => void): void {
+    const updateLut = (): void => {
+      this._sceneRenderer.forceLutPassUpdate();
+      updateCallback();
+    };
+    const parameters = this._sceneRenderer.lutPassParameters;
+    const lutMaps = this._sceneRenderer.lutMaps;
+    gui.add<any>(parameters, 'enabled').onChange(() => updateLut());
+    gui.add<any>(parameters, 'intensity', 0, 1).onChange(() => updateLut());
+    gui.add<any>(parameters, 'lut', lutMaps).onChange(() => updateLut());
   }
 
   private _addDebugGUI(gui: GUI, updateCallback: () => void): void {

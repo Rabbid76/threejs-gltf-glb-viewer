@@ -16,6 +16,7 @@ import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import { Controls } from './controls';
 import type {
+  LutImageDefinition,
   OutlineParameters,
   SceneRendererParameters,
 } from '../renderer/scene-renderer';
@@ -59,6 +60,40 @@ import type { CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.j
 import { GroundedSkybox } from 'three/examples/jsm/objects/GroundedSkybox.js';
 // @ts-ignore
 import Test64EnvMap from './../../../resources/test64.envmap';
+// @ts-ignore
+import Bourbon64CUBE from './../../../resources/luts/Bourbon 64.CUBE';
+// @ts-ignore
+import Chemical168CUBE from './../../../resources/luts/Chemical 168.CUBE';
+// @ts-ignore
+import Clayton33CUBE from './../../../resources/luts/Clayton 33.CUBE';
+// @ts-ignore
+import Cubicle99CUBE from './../../../resources/luts/Cubicle 99.CUBE';
+// @ts-ignore
+import Remy24CUBE from './../../../resources/luts/Remy 24.CUBE';
+// @ts-ignore
+import PresetproCinematic3dl from './../../../resources/luts/Presetpro-Cinematic.3dl';
+// @ts-ignore
+import NeutralLUT from './../../../resources/luts/NeutralLUT.png';
+// @ts-ignore
+import BandWLUT from './../../../resources/luts/B&WLUT.png';
+// @ts-ignore
+import NightLUT from './../../../resources/luts/NightLUT.png';
+
+const lutImages: LutImageDefinition[] = [
+  { name: 'Bourbon 64', url: Bourbon64CUBE, type: 'cube' },
+  { name: 'Chemical 168', url: Chemical168CUBE, type: 'cube' },
+  { name: 'Clayton 33', url: Clayton33CUBE, type: 'cube' },
+  { name: 'Cubicle 99', url: Cubicle99CUBE, type: 'cube' },
+  { name: 'Remy 24', url: Remy24CUBE, type: 'cube' },
+  {
+    name: 'Presetpro Cinematic',
+    url: PresetproCinematic3dl,
+    type: '3dl',
+  },
+  { name: 'Neutral', url: NeutralLUT, type: 'image' },
+  { name: 'B&W', url: BandWLUT, type: 'image' },
+  { name: 'Night', url: NightLUT, type: 'image' },
+];
 
 export interface SceneProperties {
   rotate: number;
@@ -154,6 +189,7 @@ export class SceneManager {
     this.backgroundEnvironment = new BackgroundEnvironment();
     this.backgroundEnvironment.addToScene(this.scene);
     this.sceneRenderer.setQualityMap(defaultQualityLevels);
+    this.loadLutImages();
   }
 
   public getLightSources(): LightSources {
@@ -190,6 +226,10 @@ export class SceneManager {
     } catch (e) {
       console.log(e);
     }
+  }
+
+  public loadLutImages() {
+    this.sceneRenderer.loadLutImages(lutImages);
   }
 
   public createControls(): void {

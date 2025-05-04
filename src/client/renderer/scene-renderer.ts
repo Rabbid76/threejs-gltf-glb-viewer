@@ -32,23 +32,24 @@ import type {
 } from './shading-settings';
 import {
   DepthWriteRenderCache,
+  isTransmissiveMaterial,
   RenderCacheManager,
   VisibilityRenderCache,
 } from './render-cache';
+import type { LutPassParameters } from './render-pass-manager';
 import { RenderPassManager } from './render-pass-manager';
 import type { SceneRenderPass } from './pass/scene-render-pass';
 import type { Enumify, Nullable } from '../utils/types';
 import type {
   Box3,
   Camera,
-  Mesh,
   Object3D,
   PerspectiveCamera,
   RectAreaLight,
   Scene,
   WebGLRenderer,
 } from 'three';
-import { Group } from 'three';
+import { Group, Mesh } from 'three';
 
 export { type BakedGroundContactShadowParameters } from './pass/baked-ground-contact-shadow-pass';
 export { type OutlineParameters } from './outline-renderer';
@@ -73,6 +74,12 @@ export const QUALITY_LEVELS = {
 export type QualityLevel = Enumify<typeof QUALITY_LEVELS>;
 
 export type QualityMap = Map<QualityLevel, any>;
+
+export interface LutImageDefinition {
+  name: string;
+  url: string;
+  type: string;
+}
 
 export interface SceneRendererParameters {
   gBufferRenderTargetParameters: GBufferParameters;
@@ -151,6 +158,14 @@ export class SceneRenderer {
     return this._renderPassManager.shadowAndAoPass;
   }
 
+  public get lutPassParameters(): LutPassParameters {
+    return this._renderPassManager.lutPassParameters;
+  }
+
+  public get lutMaps(): string[] {
+    return this._renderPassManager.lutMaps;
+  }
+
   public get debugPass(): DebugPass {
     return this._renderPassManager.debugPass;
   }
@@ -173,6 +188,20 @@ export class SceneRenderer {
       'inivisibleGround',
       new VisibilityRenderCache((object: any) => {
         return object === this.groundGroup;
+      })
+    );
+    this.renderCacheManager.registerCache(
+      'groundReflection',
+      new VisibilityRenderCache((object: any) => {
+        if (object === this.groundGroup) {
+          return true;
+        } else if (
+          object instanceof Mesh &&
+          isTransmissiveMaterial((object as Mesh).material)
+        ) {
+          return true;
+        }
+        return false;
       })
     );
     this.renderCacheManager.registerCache('debug', new VisibilityRenderCache());
@@ -227,6 +256,18 @@ export class SceneRenderer {
     this.height = height;
     this._renderPassManager.setSize(width, height);
     this.renderer.setSize(width, height);
+  }
+
+  public loadLutImages(luts: LutImageDefinition[]): void {
+    for (const lut of luts) {
+      if (lut.type === 'image') {
+        this._renderPassManager.loadLutImage(lut.name, lut.url);
+      } else if (lut.type === 'cube') {
+        this._renderPassManager.loadLutCube(lut.name, lut.url);
+      } else if (lut.type === '3dl') {
+        this._renderPassManager.loadLut3dl(lut.name, lut.url);
+      }
+    }
   }
 
   public getQualityLevel() {
@@ -322,6 +363,11 @@ export class SceneRenderer {
     if (updateBakedGroundShadow) {
       this.bakedGroundContactShadowPass.needsUpdate = true;
     }
+  }
+
+  public forceLutPassUpdate() {
+    this._renderPassManager.lutPassNeedsUpdate = true;
+    this._renderPassManager.materialsNeedUpdate = true;
   }
 
   public updateParameters(parameters: SceneRendererChangeParameters) {

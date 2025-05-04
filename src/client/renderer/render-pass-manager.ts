@@ -11,7 +11,7 @@ import { DebugPass } from './pass/debug-pass';
 import { SHADOW_BLUR_TYPES } from './pass/shadow-and-ao-pass';
 import { SceneRenderPass } from './pass/scene-render-pass';
 import type { SceneRenderer, SceneRendererParameters } from './scene-renderer';
-import type { Camera, Scene, Texture, WebGLRenderer } from 'three';
+import { HalfFloatType, WebGLRenderTarget } from 'three';
 import type { ThreeObject3d } from './render-cache';
 import { PostProcessingMaterialPlugin } from './materials/postprocessing-material-plugin';
 import {
@@ -20,7 +20,22 @@ import {
   NearestFilter,
   Vector2,
 } from 'three';
-import type { Mesh, Object3D } from 'three';
+import type {
+  Mesh,
+  Object3D,
+  Camera,
+  Scene,
+  Texture,
+  WebGLRenderer,
+} from 'three';
+import { LUTPass } from 'three/examples/jsm/postprocessing/LUTPass';
+import type { LUTCubeResult } from 'three/examples/jsm/loaders/LUTCubeLoader';
+import { LUTCubeLoader } from 'three/examples/jsm/loaders/LUTCubeLoader';
+import type { LUTImageResult } from 'three/examples/jsm/loaders/LUTImageLoader';
+import { LUTImageLoader } from 'three/examples/jsm/loaders/LUTImageLoader';
+import type { LUT3dlResult } from 'three/examples/jsm/loaders/LUT3dlLoader';
+import { LUT3dlLoader } from 'three/examples/jsm/loaders/LUT3dlLoader';
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass';
 
 interface _passUpdateStates {
   updateGBuffer: boolean;
@@ -36,6 +51,19 @@ interface DynamicPassUpdateRequirements {
   shadowOnCameraChange: ShadowBlurType;
   intensityScale: number;
 }
+
+export interface LutPassParameters {
+  [key: string]: any;
+  enabled: boolean;
+  lut: string;
+  intensity: number;
+}
+
+const defaultLutPassParameters: LutPassParameters = {
+  enabled: false,
+  intensity: 1,
+  lut: 'Bourbon 64',
+};
 
 export class RenderPassManager {
   public materialsNeedUpdate: boolean = true;
@@ -65,6 +93,17 @@ export class RenderPassManager {
     updateDebugPass: false,
   };
   public aoPassMapTexture: Texture | null = null;
+  private _lutMap: Map<
+    string,
+    LUTImageResult | LUT3dlResult | LUTCubeResult | null
+  > = new Map<string, LUTImageResult>();
+  private _lutPass: LUTPass;
+  private _lutPassParameters: LutPassParameters = defaultLutPassParameters;
+  public lutPassNeedsUpdate: boolean = false;
+  private _renderToRenderTarget: boolean = false;
+  private _outputPass: OutputPass;
+  private _passRenderTarget?: WebGLRenderTarget;
+  private _passPassRenderTarget?: WebGLRenderTarget;
 
   public get passRenderer(): PassRenderer {
     return this._passRenderer;
@@ -120,6 +159,14 @@ export class RenderPassManager {
 
   public get shadowAndAoPass(): ShadowAndAoPass {
     return this._shadowAndAoPass;
+  }
+
+  public get lutPassParameters(): LutPassParameters {
+    return this._lutPassParameters;
+  }
+
+  public get lutMaps(): string[] {
+    return Array.from(this._lutMap.keys());
   }
 
   public get outlinePass(): OutlinePass | null {
@@ -184,6 +231,11 @@ export class RenderPassManager {
       this._sceneRenderer.height,
       gBufferAndAoSamples
     );
+    this._lutPass = new LUTPass({
+      lut: undefined,
+      intensity: 1,
+    });
+    this._outputPass = new OutputPass();
   }
 
   public dispose() {
@@ -194,6 +246,10 @@ export class RenderPassManager {
     this._screenSpaceShadowMapPass.dispose();
     this._shadowAndAoPass.dispose();
     this._outlinePass?.dispose();
+    this._lutPass.dispose();
+    this._outputPass.dispose();
+    this._passRenderTarget?.dispose();
+    this._passPassRenderTarget?.dispose();
   }
 
   public setSize(width: number, height: number): void {
@@ -202,6 +258,37 @@ export class RenderPassManager {
     this._screenSpaceShadowMapPass.setSize(width, height);
     this._shadowAndAoPass.setSize(width, height);
     this._outlinePass?.setSize(width, height);
+    const devicePixelRatio = this._sceneRenderer.renderer.getPixelRatio();
+    const deviceWith = width * devicePixelRatio;
+    const deviceHeight = height * devicePixelRatio;
+    this._lutPass.setSize(deviceWith, deviceHeight);
+    this._outputPass.setSize(deviceWith, deviceHeight);
+    this._passRenderTarget?.setSize(deviceWith, deviceHeight);
+    this._passPassRenderTarget?.setSize(deviceWith, deviceHeight);
+  }
+
+  public loadLutImage(name: string, url: string): void {
+    this._lutMap.set(name, null);
+    const loader = new LUTImageLoader();
+    loader.load(url, (result: LUTImageResult) => {
+      this._lutMap.set(name, result);
+    });
+  }
+
+  public loadLutCube(name: string, url: string): void {
+    this._lutMap.set(name, null);
+    const loader = new LUTCubeLoader();
+    loader.load(url, (result: LUTCubeResult) => {
+      this._lutMap.set(name, result);
+    });
+  }
+
+  public loadLut3dl(name: string, url: string): void {
+    this._lutMap.set(name, null);
+    const loader = new LUT3dlLoader();
+    loader.load(url, (result: LUT3dlResult) => {
+      this._lutMap.set(name, result);
+    });
   }
 
   public createOutlinePass(): OutlinePass {
@@ -221,6 +308,38 @@ export class RenderPassManager {
     return this._outlinePass;
   }
 
+  public getRenderPassRenderTarget(
+    renderer: WebGLRenderer
+  ): WebGLRenderTarget | null {
+    if (!this._lutPassParameters.enabled) {
+      return null;
+    }
+    this._passRenderTarget =
+      this._passRenderTarget ??
+      new WebGLRenderTarget(
+        this._sceneRenderer.width * renderer.getPixelRatio(),
+        this._sceneRenderer.height * renderer.getPixelRatio(),
+        { type: HalfFloatType, samples: this._maxSamples }
+      );
+    return this._passRenderTarget;
+  }
+
+  public getPostPassRenderTarget(
+    renderer: WebGLRenderer
+  ): WebGLRenderTarget | null {
+    if (!this._lutPassParameters.enabled) {
+      return null;
+    }
+    this._passPassRenderTarget =
+      this._passPassRenderTarget ??
+      new WebGLRenderTarget(
+        this._sceneRenderer.width * renderer.getPixelRatio(),
+        this._sceneRenderer.height * renderer.getPixelRatio(),
+        { type: HalfFloatType }
+      );
+    return this._passPassRenderTarget;
+  }
+
   public setGroundVisibility(visible: boolean): void {
     this._sceneRenderer.shadowAndAoGroundPlane.setVisibility(visible);
   }
@@ -230,12 +349,14 @@ export class RenderPassManager {
     this._camera = camera;
     this._cameraChanged = this._cameraUpdate.changed(camera);
     const updateRequirements = this._evaluateIfShadowAndAoUpdateIsNeeded();
+    this._renderToRenderTarget = this._lutPassParameters.enabled;
     this._updateSceneRenderPass();
     this._updateBakedGroundContactShadowPass();
     this._updateGBufferPass(updateRequirements);
     this._updateGroundReflectionPass(updateRequirements);
     this._updateScreenSpaceShadowPass(updateRequirements);
     this._updateShadowAndAoPass(updateRequirements);
+    this._updateLutPass();
     this._updateOutlinePass();
     this._updateDebugPass();
   }
@@ -376,6 +497,21 @@ export class RenderPassManager {
     this._passUpdateStates.updateGBuffer = true;
   }
 
+  private _updateLutPass() {
+    if (!this._lutPassParameters.enabled || !this.lutPassNeedsUpdate) {
+      return;
+    }
+    this.lutPassNeedsUpdate = false;
+    this._lutPass.enabled = this._lutPassParameters.enabled;
+    this._lutPass.intensity = this._lutPassParameters.intensity;
+    if (this._lutMap.has(this._lutPassParameters.lut)) {
+      const lut = this._lutMap.get(this._lutPassParameters.lut);
+      if (lut?.texture3D) {
+        this._lutPass.lut = lut.texture3D;
+      }
+    }
+  }
+
   private _updateOutlinePass() {
     if (
       !this.outlineRenderer.outlinePassActivated ||
@@ -497,7 +633,7 @@ export class RenderPassManager {
     const intensity = this._groundReflectionPass.parameters.intensity;
     plugIn.applyReflectionPassMap = reflectionEnabled;
     plugIn.reflectionPassMapIntensity = reflectionEnabled
-      ? Math.pow(intensity, 0.25)
+      ? Math.pow(intensity, 0.5)
       : 0;
     plugIn.reflectionPassMapScale =
       1 /
@@ -507,7 +643,9 @@ export class RenderPassManager {
   }
 
   public renderPasses(renderer: WebGLRenderer, scene: Scene): void {
-    renderer.setRenderTarget(null);
+    const passRenderTarget = this.getRenderPassRenderTarget(renderer);
+    const postPassRenderTarget = this.getPostPassRenderTarget(renderer);
+    renderer.setRenderTarget(passRenderTarget);
     this._bakedGroundContactShadowPass.renderPass(renderer);
     if (this._passUpdateStates.updateGBuffer) {
       this._gBufferRenderPass.renderPass(renderer);
@@ -528,6 +666,26 @@ export class RenderPassManager {
       !this._shadowAndAoPass.parameters.applyToMaterial
     ) {
       this._shadowAndAoPass.renderToTarget(renderer);
+    }
+    if (this._lutPassParameters.enabled) {
+      renderer.setRenderTarget(postPassRenderTarget);
+      this._outputPass.renderToScreen = false;
+      this._outputPass.render(
+        renderer,
+        renderer.getRenderTarget() as WebGLRenderTarget,
+        passRenderTarget as WebGLRenderTarget,
+        0,
+        false
+      );
+      renderer.setRenderTarget(null);
+      this._lutPass.renderToScreen = true;
+      this._lutPass.render(
+        renderer,
+        renderer.getRenderTarget() as WebGLRenderTarget,
+        postPassRenderTarget as WebGLRenderTarget,
+        0,
+        false
+      );
     }
     if (this._passUpdateStates.updateOutlinePass) {
       this._outlinePass?.renderPass(renderer);
